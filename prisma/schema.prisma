@@ -10,13 +10,17 @@ datasource db {
 }
 
 model Book {
-  id        String   @id @default(cuid())
-  title     String
-  author    String?
-  coverUrl  String? // Caminho para a imagem de capa extraída
-  filePath  String // Caminho para o arquivo .epub no armazenamento
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(cuid())
+  title           String
+  author          String?
+  coverUrl        String?
+  filePath        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Campos adicionados
+  progress        Int      @default(0)
+  currentLocation String?
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

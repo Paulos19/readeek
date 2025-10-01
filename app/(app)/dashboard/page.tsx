@@ -2,9 +2,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import Link from "next/link";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UploadButton } from "./_components/UploadButton";
+import { BookCard } from "./_components/BookCard";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -15,7 +14,7 @@ export default async function DashboardPage() {
 
   const books = await prisma.book.findMany({
     where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
+    orderBy: { updatedAt: "desc" }, // Ordenar por livros atualizados mais recentemente
   });
 
   return (
@@ -33,18 +32,9 @@ export default async function DashboardPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
           {books.map((book) => (
-            <Link href={`/read/${book.id}`} key={book.id}>
-              <Card className="hover:shadow-lg hover:border-primary transition-all duration-200 h-full">
-                <CardHeader>
-                  <CardTitle className="truncate text-base">{book.title}</CardTitle>
-                  <CardDescription className="truncate text-sm">
-                    {book.author || "Autor desconhecido"}
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
+            <BookCard key={book.id} book={book} />
           ))}
         </div>
       )}

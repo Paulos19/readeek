@@ -7,6 +7,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
 
+// A biblioteca epubjs é para o lado do cliente e causava o crash no servidor.
+// A função de extração da capa foi removida para garantir a estabilidade.
+// Para implementar esta funcionalidade corretamente, seria necessário usar uma biblioteca compatível com Node.js, como 'epub-parser'.
+
 export async function uploadBook(formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user) {
@@ -24,30 +28,25 @@ export async function uploadBook(formData: FormData) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const filename = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
   
-  // IMPORTANTE: Esta abordagem salva o arquivo localmente.
-  // Para produção (ex: Vercel), substitua esta lógica por um serviço de armazenamento 
-  // como Vercel Blob, AWS S3 ou Cloudflare R2.
   const uploadsDir = path.join(process.cwd(), "public/uploads");
   const filePath = path.join(uploadsDir, filename);
 
   try {
-    // Garante que o diretório de uploads exista antes de tentar escrever o arquivo
     await mkdir(uploadsDir, { recursive: true });
     await writeFile(filePath, buffer);
 
-    // TODO: Em um cenário avançado, você usaria uma biblioteca como 'epub-parser'
-    // aqui no servidor para extrair o título e autor verdadeiros do arquivo EPUB.
-    
+    // A extração da capa foi removida para evitar o erro do servidor.
+    // O coverUrl será guardado como nulo.
     await prisma.book.create({
       data: {
-        title: file.name.replace(/\.epub$/i, ''), // Remove a extensão .epub do título
-        filePath: `/uploads/${filename}`, // Caminho relativo para acesso público
+        title: file.name.replace(/\.epub$/i, ''),
+        filePath: `/uploads/${filename}`,
         userId: session.user.id,
-        author: 'Autor desconhecido' // Placeholder
+        author: 'Autor desconhecido', // Placeholder
+        coverUrl: null, // <<< CORREÇÃO APLICADA AQUI
       },
     });
 
-    // Invalida o cache da rota do dashboard para que a lista de livros seja atualizada
     revalidatePath("/(app)/dashboard"); 
     return { success: "Livro enviado com sucesso!" };
 
@@ -55,4 +54,29 @@ export async function uploadBook(formData: FormData) {
     console.error("Falha no upload do livro:", error);
     return { error: "Ocorreu um erro no servidor ao tentar salvar o livro." };
   }
+}
+
+export async function updateBookProgress({ bookId, progress, currentLocation }: { bookId: string, progress: number, currentLocation: string }) {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+        return { error: "Não autorizado." };
+    }
+
+    try {
+        await prisma.book.update({
+            where: {
+                id: bookId,
+                userId: session.user.id,
+            },
+            data: {
+                progress,
+                currentLocation,
+            },
+        });
+        revalidatePath("/(app)/dashboard");
+        return { success: true };
+    } catch (error) {
+        console.error("Falha ao atualizar o progresso:", error);
+        return { error: "Não foi possível guardar o seu progresso." };
+    }
 }

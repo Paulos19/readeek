@@ -21,5 +21,5 @@ export default async function ReadPage({ params }: ReadPageProps) {
     return notFound();
   }
 
-  return <EpubViewer url={book.filePath} title={book.title} />;
+  return <EpubViewer url={book.filePath} title={book.title} bookId={book.id} />;
 }
