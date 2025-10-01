@@ -1,14 +1,15 @@
 // components/posts/CreatePostForm.tsx
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { createPost } from "@/app/actions/postActions";
-import { Book, PostType, User } from "@prisma/client";
+import { getHighlightsForBook } from "@/app/actions/highlightActions"; // Importa a ação para obter os trechos
+import { Book, Highlight, PostType, User } from "@prisma/client";
 import {
   Select,
   SelectContent,
@@ -17,7 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, BookCheck, MessageSquare, BookOpen } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface CreatePostFormProps {
   user: User;
@@ -28,10 +28,28 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
   const [postType, setPostType] = useState<PostType>("POST");
+  
+  // <<< NOVOS ESTADOS PARA GERIR A SELEÇÃO DE TRECHOS >>>
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [isFetchingHighlights, setIsFetchingHighlights] = useState(false);
+  const [content, setContent] = useState(""); // Controla o conteúdo da textarea
+
+  // Efeito para buscar os trechos quando o livro selecionado muda
+  useEffect(() => {
+    if (postType === 'EXCERPT' && selectedBookId) {
+      setIsFetchingHighlights(true);
+      getHighlightsForBook(selectedBookId)
+        .then(data => setHighlights(data))
+        .finally(() => setIsFetchingHighlights(false));
+    } else {
+      setHighlights([]);
+    }
+  }, [selectedBookId, postType]);
 
   const handleSubmit = async (formData: FormData) => {
-    // Adiciona o tipo de post ao FormData antes de enviar
     formData.append("type", postType);
+    formData.set("content", content); // Usa o conteúdo do estado controlado
 
     startTransition(async () => {
       const result = await createPost(formData);
@@ -46,7 +64,9 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
       } else {
         toast.success(result.success);
         formRef.current?.reset();
-        setPostType("POST"); // Volta ao tipo padrão
+        setContent("");
+        setSelectedBookId(null);
+        setPostType("POST");
       }
     });
   };
@@ -62,7 +82,6 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
           <p className="font-semibold">{user.name}</p>
         </CardHeader>
         <CardContent className="space-y-4">
-            {/* <<< BOTÕES DE TIPO DE POST ADICIONADOS AQUI >>> */}
             <div className="flex items-center gap-2">
                 <Button type="button" size="sm" variant={postType === 'POST' ? 'default' : 'outline'} onClick={() => setPostType('POST')}>
                     <MessageSquare size={16} className="mr-2"/> Post
@@ -74,8 +93,34 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
                     <BookOpen size={16} className="mr-2"/> Trecho
                 </Button>
             </div>
+            {/* <<< NOVA SECÇÃO PARA SELECIONAR TRECHOS >>> */}
+            {postType === 'EXCERPT' && selectedBookId && (
+              <div>
+                <Select
+                  disabled={isFetchingHighlights || highlights.length === 0}
+                  onValueChange={(value) => {
+                    // Se o valor for "manual", limpa a textarea, senão, preenche-a
+                    setContent(value === "manual" ? "" : value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={isFetchingHighlights ? "A carregar trechos..." : "Escolha um trecho marcado..."} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">Escrever manualmente</SelectItem>
+                    {highlights.map(hl => (
+                      <SelectItem key={hl.id} value={hl.text}>
+                        <span className="italic truncate">"{hl.text}"</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <Textarea
                 name="content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
                 placeholder={
                     postType === 'POST' ? "O que está a achar da sua leitura?" :
                     postType === 'CHALLENGE' ? "Desafie a comunidade! Ex: Ler 100 páginas hoje." :
@@ -87,7 +132,7 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
             />
         </CardContent>
         <CardFooter className="justify-between">
-          <Select name="bookId" disabled={isPending || books.length === 0}>
+          <Select name="bookId" onValueChange={setSelectedBookId} disabled={isPending || books.length === 0}>
             <SelectTrigger className="w-[280px]">
               <SelectValue placeholder="Selecione o livro associado..." />
             </SelectTrigger>
@@ -103,7 +148,7 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
               )}
             </SelectContent>
           </Select>
-          <Button type="submit" disabled={isPending}>
+          <Button type="submit" disabled={isPending || !selectedBookId || !content}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Publicar
           </Button>

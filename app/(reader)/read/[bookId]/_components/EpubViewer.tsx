@@ -5,15 +5,17 @@ import ePub, { Rendition, Location } from "epubjs";
 import Link from "next/link";
 import { useDebouncedCallback } from 'use-debounce';
 import { updateBookProgress } from "@/app/actions/bookActions";
-import { createHighlight, getHighlightsForBook } from "@/app/actions/highlightActions";
+import { createHighlight, getHighlightsForBook, deleteHighlight } from "@/app/actions/highlightActions";
 import { toast } from "sonner";
+import { Highlight } from "@prisma/client";
 import { cn } from "@/lib/utils";
 
 // UI Components
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 // Icons
 import { 
@@ -29,7 +31,9 @@ import {
   ZoomOut,
   Highlighter,
   Check,
-  X
+  X,
+  Trash2,
+  List
 } from "lucide-react";
 
 interface EpubViewerProps {
@@ -60,10 +64,12 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   const [fontSize, setFontSize] = useState(18);
   const [progress, setProgress] = useState(0);
   const [currentLocation, setCurrentLocation] = useState(0);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
   
   const [isHighlighting, setIsHighlighting] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(null);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0].value);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const nextPage = useCallback(() => renditionRef.current?.next(), []);
   const prevPage = useCallback(() => renditionRef.current?.prev(), []);
@@ -109,9 +115,13 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
     
     const result = await createHighlight({ bookId, cfiRange: pendingSelection.cfiRange, text: pendingSelection.text });
 
-    if (result.success) toast.success("Trecho marcado com sucesso!");
-    else toast.error("Erro ao marcar o trecho.");
-    
+    if (result.success && result.highlight) {
+      toast.success("Trecho marcado com sucesso!");
+      setHighlights(prev => [result.highlight!, ...prev].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } else {
+      toast.error("Erro ao marcar o trecho.");
+      renditionRef.current?.annotations.remove(pendingSelection.cfiRange, "highlight");
+    }
     setPendingSelection(null);
     setIsHighlighting(false);
   }
@@ -119,6 +129,22 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   const handleCancelHighlight = () => {
     setPendingSelection(null);
     setIsHighlighting(false);
+  }
+
+  const handleDeleteHighlight = async (highlightId: string) => {
+    const result = await deleteHighlight(highlightId);
+    if (result.success && result.cfiRange) {
+        renditionRef.current?.annotations.remove(result.cfiRange, "highlight");
+        setHighlights(prev => prev.filter(h => h.id !== highlightId));
+        toast.success("Marcação removida!");
+    } else {
+        toast.error(result.error || "Não foi possível remover a marcação.");
+    }
+  }
+
+  const goToHighlight = (cfi: string) => {
+    renditionRef.current?.display(cfi);
+    setIsSheetOpen(false);
   }
 
   useEffect(() => {
@@ -135,6 +161,7 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
     
     book.ready.then(() => book.locations.generate(1650)).then(async () => {
       const existingHighlights = await getHighlightsForBook(bookId);
+      setHighlights(existingHighlights);
       existingHighlights.forEach(hl => {
         rendition.annotations.add("highlight", hl.cfiRange, {}, undefined, "hl", { "fill": "yellow", "fill-opacity": "0.3" });
       });
@@ -153,11 +180,9 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
       debouncedUpdateProgress(loc);
     });
     
-    rendition.on("selected", (cfiRange: string, contents: any) => {
-        if (!isHighlighting) {
-            contents.window.getSelection()?.removeAllRanges();
-            return;
-        }
+    rendition.on("selected", (cfiRange: string) => {
+        if (!isHighlighting) return;
+        
         const range = rendition.getRange(cfiRange);
         const text = range?.toString().trim();
         if (range && text) {
@@ -198,11 +223,9 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
                   />
               ))}
           </ToggleGroup>
-          {pendingSelection && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-green-500" onClick={handleConfirmHighlight}>
-              <Check size={20} />
-            </Button>
-          )}
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-green-500 disabled:text-gray-400" onClick={handleConfirmHighlight} disabled={!pendingSelection}>
+            <Check size={20} />
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCancelHighlight}>
               <X size={20} />
           </Button>
@@ -221,6 +244,27 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
             <span className="text-xs text-muted-foreground">Localização {currentLocation}</span>
           </div>
           <div className="flex items-center">
+            <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon"><List className="h-5 w-5" /></Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Trechos Marcados</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4 space-y-4 h-full overflow-y-auto pb-10">
+                  {highlights.length > 0 ? highlights.map(hl => (
+                    <div key={hl.id} className="group relative rounded-md border p-4 text-sm hover:bg-muted/50">
+                      <p className="text-muted-foreground italic line-clamp-4">"{hl.text}"</p>
+                      <div className="mt-2 flex justify-end gap-2">
+                          <Button size="sm" variant="outline" onClick={() => goToHighlight(hl.cfiRange)}>Ir para</Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleDeleteHighlight(hl.id)}><Trash2 size={16} /></Button>
+                      </div>
+                    </div>
+                  )) : <p className="text-center text-muted-foreground py-10">Ainda não marcou nenhum trecho.</p>}
+                </div>
+              </SheetContent>
+            </Sheet>
             <Button variant="ghost" size="icon" onClick={() => { setIsHighlighting(true); cancelHideUi(); }}>
               <Highlighter className="h-5 w-5" />
             </Button>
@@ -259,17 +303,16 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
             style={{ 
               visibility: isLoading ? 'hidden' : 'visible',
               userSelect: isHighlighting ? 'text' : 'none',
-              pointerEvents: isHighlighting ? 'auto' : 'none',
             }}
           />
-          <div className={cn(
-              "absolute inset-0 z-10",
-              isHighlighting && "pointer-events-none"
-          )}>
-            <div className="absolute left-0 top-0 h-full w-[25%] cursor-pointer" onClick={prevPage}></div>
-            <div className="absolute left-[25%] top-0 h-full w-[50%] cursor-pointer" onClick={toggleUi}></div>
-            <div className="absolute right-0 top-0 h-full w-[25%] cursor-pointer" onClick={nextPage}></div>
-          </div>
+          {/* A camada de navegação só fica ativa quando NÃO estamos a marcar texto */}
+          {!isHighlighting && (
+            <div className="absolute inset-0 z-10">
+              <div className="absolute left-0 top-0 h-full w-[25%] cursor-pointer" onClick={prevPage}></div>
+              <div className="absolute left-[25%] top-0 h-full w-[50%] cursor-pointer" onClick={toggleUi}></div>
+              <div className="absolute right-0 top-0 h-full w-[25%] cursor-pointer" onClick={nextPage}></div>
+            </div>
+          )}
         </div>
       </div>
     </div >
