@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 // UI Components
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
@@ -70,6 +70,12 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(null);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0].value);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  
+  // *** INÍCIO DA CORREÇÃO PRINCIPAL ***
+  // Usamos uma ref para garantir que o event listener sempre tenha o valor mais recente de isHighlighting
+  const isHighlightingRef = useRef(isHighlighting);
+  isHighlightingRef.current = isHighlighting;
+  // *** FIM DA CORREÇÃO PRINCIPAL ***
 
   const nextPage = useCallback(() => renditionRef.current?.next(), []);
   const prevPage = useCallback(() => renditionRef.current?.prev(), []);
@@ -86,8 +92,12 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   const toggleUi = useCallback(() => {
     setUiVisible(v => {
       const newVisibility = !v;
-      if (newVisibility) hideUiAfterDelay(); else cancelHideUi();
-      if (!newVisibility) setIsHighlighting(false);
+      if (newVisibility) {
+        hideUiAfterDelay();
+      } else {
+        cancelHideUi();
+        setIsHighlighting(false); 
+      }
       return newVisibility;
     });
   }, [hideUiAfterDelay, cancelHideUi]);
@@ -181,7 +191,9 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
     });
     
     rendition.on("selected", (cfiRange: string) => {
-        if (!isHighlighting) return;
+        // *** CORREÇÃO APLICADA AQUI ***
+        // Usamos a ref em vez do estado diretamente
+        if (!isHighlightingRef.current) return;
         
         const range = rendition.getRange(cfiRange);
         const text = range?.toString().trim();
@@ -265,7 +277,7 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
                 </div>
               </SheetContent>
             </Sheet>
-            <Button variant="ghost" size="icon" onClick={() => { setIsHighlighting(true); cancelHideUi(); }}>
+            <Button variant="ghost" size="icon" onClick={() => { setIsHighlighting(true); cancelHideUi(); toast.info("Modo de marcação ativado", {description: "Selecione o texto que deseja marcar."}) }}>
               <Highlighter className="h-5 w-5" />
             </Button>
             <DropdownMenu onOpenChange={(open) => { if (open) cancelHideUi(); else hideUiAfterDelay(); }}>
@@ -305,7 +317,6 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
               userSelect: isHighlighting ? 'text' : 'none',
             }}
           />
-          {/* A camada de navegação só fica ativa quando NÃO estamos a marcar texto */}
           {!isHighlighting && (
             <div className="absolute inset-0 z-10">
               <div className="absolute left-0 top-0 h-full w-[25%] cursor-pointer" onClick={prevPage}></div>
