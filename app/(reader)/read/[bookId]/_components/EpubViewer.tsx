@@ -3,18 +3,34 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import ePub, { Rendition, Location } from "epubjs";
 import Link from "next/link";
-import { useDrag } from "@use-gesture/react";
-import { animated, useSpring } from "@react-spring/web";
 import { useDebouncedCallback } from 'use-debounce';
 import { updateBookProgress } from "@/app/actions/bookActions";
 import { createHighlight, getHighlightsForBook } from "@/app/actions/highlightActions";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
+// UI Components
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-import { Loader2, Home, ChevronLeft, ChevronRight, Settings, Sun, Moon, Book as BookIcon, ZoomIn, ZoomOut, Highlighter } from "lucide-react";
+// Icons
+import { 
+  Loader2, 
+  Home, 
+  ChevronLeft, 
+  ChevronRight,
+  Settings,
+  Sun,
+  Moon,
+  Book as BookIcon,
+  ZoomIn,
+  ZoomOut,
+  Highlighter,
+  Check,
+  X
+} from "lucide-react";
 
 interface EpubViewerProps {
   url: string;
@@ -25,8 +41,14 @@ interface EpubViewerProps {
 interface Selection {
   cfiRange: string;
   text: string;
-  rect: DOMRect;
 }
+
+const HIGHLIGHT_COLORS = [
+    { name: 'Yellow', value: 'rgba(255, 255, 0, 0.4)' },
+    { name: 'Green', value: 'rgba(144, 238, 144, 0.4)' },
+    { name: 'Blue', value: 'rgba(173, 216, 230, 0.4)' },
+    { name: 'Pink', value: 'rgba(255, 192, 203, 0.4)' },
+];
 
 export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -38,16 +60,17 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   const [fontSize, setFontSize] = useState(18);
   const [progress, setProgress] = useState(0);
   const [currentLocation, setCurrentLocation] = useState(0);
-  const [selection, setSelection] = useState<Selection | null>(null);
-
-  const [{ x }, api] = useSpring(() => ({ x: 0 }));
+  
+  const [isHighlighting, setIsHighlighting] = useState(false);
+  const [pendingSelection, setPendingSelection] = useState<Selection | null>(null);
+  const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0].value);
 
   const nextPage = useCallback(() => renditionRef.current?.next(), []);
   const prevPage = useCallback(() => renditionRef.current?.prev(), []);
 
   const hideUiAfterDelay = useCallback(() => {
     if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
-    uiTimeoutRef.current = setTimeout(() => setUiVisible(false), 3000);
+    uiTimeoutRef.current = setTimeout(() => setUiVisible(false), 4000);
   }, []);
   
   const cancelHideUi = useCallback(() => {
@@ -56,8 +79,10 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
 
   const toggleUi = useCallback(() => {
     setUiVisible(v => {
-      if (!v) hideUiAfterDelay(); else cancelHideUi();
-      return !v;
+      const newVisibility = !v;
+      if (newVisibility) hideUiAfterDelay(); else cancelHideUi();
+      if (!newVisibility) setIsHighlighting(false);
+      return newVisibility;
     });
   }, [hideUiAfterDelay, cancelHideUi]);
 
@@ -70,40 +95,31 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   }, []);
   
   useEffect(() => {
-    if (renditionRef.current) {
-      renditionRef.current.themes.fontSize(`${fontSize}px`);
-    }
+    if (renditionRef.current) renditionRef.current.themes.fontSize(`${fontSize}px`);
   }, [fontSize]);
 
   const debouncedUpdateProgress = useDebouncedCallback((loc: Location) => {
     updateBookProgress({ bookId, progress: Math.round(loc.start.percentage * 100), currentLocation: loc.start.cfi });
   }, 2000);
 
-  const handleMarkHighlight = async () => {
-    if (!selection) return;
+  const handleConfirmHighlight = async () => {
+    if (!pendingSelection) return;
     
-    renditionRef.current?.annotations.add("highlight", selection.cfiRange, {}, undefined, "hl", { "fill": "yellow", "fill-opacity": "0.3" });
+    renditionRef.current?.annotations.add("highlight", pendingSelection.cfiRange, {}, undefined, "hl", { "fill": highlightColor });
     
-    const result = await createHighlight({ bookId, cfiRange: selection.cfiRange, text: selection.text });
+    const result = await createHighlight({ bookId, cfiRange: pendingSelection.cfiRange, text: pendingSelection.text });
 
-    if (result.success) {
-      toast.success("Trecho marcado com sucesso!");
-    } else {
-      toast.error("Erro ao marcar o trecho.");
-      renditionRef.current?.annotations.remove(selection.cfiRange, "highlight");
-    }
+    if (result.success) toast.success("Trecho marcado com sucesso!");
+    else toast.error("Erro ao marcar o trecho.");
     
-    setSelection(null);
+    setPendingSelection(null);
+    setIsHighlighting(false);
   }
-
-  const bind = useDrag(({ down, movement: [mx], direction: [dx], velocity: [vx] }) => {
-    const trigger = vx > 0.2 || Math.abs(mx) > window.innerWidth / 4;
-    if (!down && trigger) {
-      dx > 0 ? prevPage() : nextPage();
-    }
-    api.start({ x: down ? mx : 0, immediate: down });
-    cancelHideUi();
-  }, { onDragEnd: hideUiAfterDelay, axis: 'x' });
+  
+  const handleCancelHighlight = () => {
+    setPendingSelection(null);
+    setIsHighlighting(false);
+  }
 
   useEffect(() => {
     if (!viewerRef.current) return;
@@ -126,7 +142,6 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
       const initialLocation = window.location.hash.substring(1);
       rendition.display(initialLocation || undefined);
       setTheme('light');
-      rendition.themes.fontSize(`${fontSize}px`);
       setIsLoading(false);
       hideUiAfterDelay();
     });
@@ -139,16 +154,15 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
     });
     
     rendition.on("selected", (cfiRange: string, contents: any) => {
-        const range = rendition.getRange(cfiRange);
-        if (range) {
-            const rect = range.getBoundingClientRect();
-            setSelection({
-                cfiRange,
-                text: range.toString(),
-                rect,
-            });
+        if (!isHighlighting) {
+            contents.window.getSelection()?.removeAllRanges();
+            return;
         }
-        contents.window.getSelection().removeAllRanges();
+        const range = rendition.getRange(cfiRange);
+        const text = range?.toString().trim();
+        if (range && text) {
+            setPendingSelection({ cfiRange, text });
+        }
     });
 
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -162,110 +176,100 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
       document.removeEventListener("keydown", handleKeyPress);
       if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
     };
-  }, [url, bookId, nextPage, prevPage, setTheme, hideUiAfterDelay, debouncedUpdateProgress, fontSize]);
+  }, [url, bookId]);
     
   return (
-    // <<< CORREÇÃO APLICADA AQUI: A classe 'select-none' foi removida >>>
     <div className="relative w-screen h-screen flex flex-col items-center bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
       
-      {isLoading && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        </div>
-      )}
+      {isLoading && <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}
 
-      {selection && (
+      {isHighlighting && (
         <div 
-          className="absolute z-40" 
-          style={{ 
-            left: `${selection.rect.left + selection.rect.width / 2}px`, 
-            top: `${selection.rect.top - 40}px`, 
-            transform: 'translateX(-50%)' 
-          }}
+          style={{ boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)' }}
+          className="fixed top-4 w-auto bg-background/60 backdrop-blur-xl border rounded-lg p-2 z-40 flex items-center gap-2"
         >
-          <Button onClick={handleMarkHighlight}>
-            <Highlighter className="mr-2" size={16}/>
-            Marcar trecho
+          <p className="text-sm font-medium mr-2">{pendingSelection ? "Escolha a cor e confirme:" : "Selecione o texto para marcar"}</p>
+          <ToggleGroup type="single" value={highlightColor} onValueChange={(color) => { if(color) setHighlightColor(color) }}>
+              {HIGHLIGHT_COLORS.map(color => (
+                  <ToggleGroupItem 
+                      key={color.name} value={color.value} 
+                      className="w-7 h-7 rounded-full border-2 border-transparent p-0 data-[state=on]:border-primary"
+                      style={{ backgroundColor: color.value.replace('0.4', '1') }}
+                  />
+              ))}
+          </ToggleGroup>
+          {pendingSelection && (
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-green-500" onClick={handleConfirmHighlight}>
+              <Check size={20} />
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCancelHighlight}>
+              <X size={20} />
           </Button>
         </div>
       )}
 
-       <animated.div
-        onMouseEnter={cancelHideUi}
-        onMouseLeave={hideUiAfterDelay}
-        style={{ 
-          transform: uiVisible ? 'translateY(0%) translateX(-50%)' : 'translateY(150%) translateX(-50%)',
-          boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
-        }}
+      <div
+        style={{ transform: uiVisible ? 'translateY(0%) translateX(-50%)' : 'translateY(150%) translateX(-50%)', boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)' }}
+        onMouseEnter={cancelHideUi} onMouseLeave={hideUiAfterDelay}
         className="fixed bottom-4 left-1/2 w-[90%] max-w-4xl bg-background/60 backdrop-blur-xl border rounded-xl p-3 text-center z-30 flex flex-col gap-3 transition-transform duration-300"
       >
         <div className="flex items-center justify-between gap-4 px-1">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard"><Home className="h-5 w-5" /></Link>
-          </Button>
+          <Button variant="ghost" size="icon" asChild><Link href="/dashboard"><Home className="h-5 w-5" /></Link></Button>
           <div className="flex flex-col text-center overflow-hidden">
             <h1 className="text-sm font-semibold truncate">{title}</h1>
             <span className="text-xs text-muted-foreground">Localização {currentLocation}</span>
           </div>
-          <DropdownMenu onOpenChange={(open) => {
-            if (open) {
-              cancelHideUi();
-            } else {
-              hideUiAfterDelay();
-            }
-          }}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon"><Settings className="h-5 w-5" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <div className="px-2 py-1.5 text-sm font-semibold">Fonte</div>
-              <div className="flex items-center justify-center gap-2 px-2 py-1">
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeFontSize('decrease')} disabled={fontSize <= 14}>
-                  <ZoomOut className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium w-6 text-center">{fontSize}</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeFontSize('increase')} disabled={fontSize >= 28}>
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="px-2 py-1.5 text-sm font-semibold">Tema</div>
-              <DropdownMenuItem onClick={() => setTheme('light')}><Sun className="mr-2 h-4 w-4"/> Claro</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('dark')}><Moon className="mr-2 h-4 w-4"/> Escuro</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('sepia')}><BookIcon className="mr-2 h-4 w-4"/> Sépia</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center">
+            <Button variant="ghost" size="icon" onClick={() => { setIsHighlighting(true); cancelHideUi(); }}>
+              <Highlighter className="h-5 w-5" />
+            </Button>
+            <DropdownMenu onOpenChange={(open) => { if (open) cancelHideUi(); else hideUiAfterDelay(); }}>
+              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><Settings className="h-5 w-5" /></Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <div className="px-2 py-1.5 text-sm font-semibold">Fonte</div>
+                <div className="flex items-center justify-center gap-2 px-2 py-1">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeFontSize('decrease')} disabled={fontSize <= 14}><ZoomOut className="h-4 w-4" /></Button>
+                  <span className="text-sm font-medium w-6 text-center">{fontSize}</span>
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeFontSize('increase')} disabled={fontSize >= 28}><ZoomIn className="h-4 w-4" /></Button>
+                </div>
+                <div className="px-2 py-1.5 text-sm font-semibold">Tema</div>
+                <DropdownMenuItem onClick={() => setTheme('light')}><Sun className="mr-2 h-4 w-4"/> Claro</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('dark')}><Moon className="mr-2 h-4 w-4"/> Escuro</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('sepia')}><BookIcon className="mr-2 h-4 w-4"/> Sépia</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         <div className="flex items-center justify-between gap-4 px-2">
             <Progress value={progress} className="w-full" />
             <span className="text-xs text-muted-foreground w-10 text-right">{progress}%</span>
         </div>
-      </animated.div>
+      </div>
 
       <div className="w-full flex-grow relative flex items-center justify-center group">
-        <Button variant="ghost" size="icon" className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full z-20 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex" onClick={prevPage}>
-            <ChevronLeft size={32} />
-        </Button>
-        <Button variant="ghost" size="icon" className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full z-20 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex" onClick={nextPage}>
-            <ChevronRight size={32} />
-        </Button>
+        <Button variant="ghost" size="icon" className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full z-20 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex" onClick={prevPage}><ChevronLeft size={32} /></Button>
+        <Button variant="ghost" size="icon" className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full z-20 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex" onClick={nextPage}><ChevronRight size={32} /></Button>
 
         <div className="w-full h-full max-w-4xl relative">
-          <animated.div
-            {...bind()}
-            className="absolute inset-0 z-20"
-            onPointerDown={() => setSelection(null)}
-          >
-            <div className="absolute left-0 top-0 h-full w-[25%]" onClick={prevPage}></div>
-            <div className="absolute left-[25%] top-0 h-full w-[50%]" onClick={toggleUi}></div>
-            <div className="absolute right-0 top-0 h-full w-[25%]" onClick={nextPage}></div>
-          </animated.div>
-          
           <div
-            ref={viewerRef}
             id="viewer"
+            ref={viewerRef}
             className="w-full h-full"
-            style={{ visibility: isLoading ? 'hidden' : 'visible' }}
+            style={{ 
+              visibility: isLoading ? 'hidden' : 'visible',
+              userSelect: isHighlighting ? 'text' : 'none',
+              pointerEvents: isHighlighting ? 'auto' : 'none',
+            }}
           />
+          <div className={cn(
+              "absolute inset-0 z-10",
+              isHighlighting && "pointer-events-none"
+          )}>
+            <div className="absolute left-0 top-0 h-full w-[25%] cursor-pointer" onClick={prevPage}></div>
+            <div className="absolute left-[25%] top-0 h-full w-[50%] cursor-pointer" onClick={toggleUi}></div>
+            <div className="absolute right-0 top-0 h-full w-[25%] cursor-pointer" onClick={nextPage}></div>
+          </div>
         </div>
       </div>
     </div >
