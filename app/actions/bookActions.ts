@@ -1,15 +1,10 @@
 "use server";
 
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
+import { put } from "@vercel/blob"; // 1. Importe o 'put' do Vercel Blob
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
-
-// A biblioteca epubjs é para o lado do cliente e causava o crash no servidor.
-// A função de extração da capa foi removida para garantir a estabilidade.
-// Para implementar esta funcionalidade corretamente, seria necessário usar uma biblioteca compatível com Node.js, como 'epub-parser'.
 
 export async function uploadBook(formData: FormData) {
   const session = await getServerSession(authOptions);
@@ -24,30 +19,27 @@ export async function uploadBook(formData: FormData) {
   if (file.type !== 'application/epub+zip') {
     return { error: "Arquivo inválido. Por favor, envie um arquivo no formato .epub." };
   }
-  
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const filename = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
-  
-  const uploadsDir = path.join(process.cwd(), "public/uploads");
-  const filePath = path.join(uploadsDir, filename);
+
+  const filename = file.name.replace(/\s/g, '_');
 
   try {
-    await mkdir(uploadsDir, { recursive: true });
-    await writeFile(filePath, buffer);
+    // 2. Substitua a lógica de 'writeFile' pela chamada 'put'
+    const blob = await put(filename, file, {
+      access: 'public', // O ficheiro precisa de ser público para ser lido pelo EpubViewer
+    });
 
-    // A extração da capa foi removida para evitar o erro do servidor.
-    // O coverUrl será guardado como nulo.
+    // 3. Guarde o URL retornado pelo Vercel Blob na base de dados
     await prisma.book.create({
       data: {
         title: file.name.replace(/\.epub$/i, ''),
-        filePath: `/uploads/${filename}`,
+        filePath: blob.url, // Usamos o URL do blob
         userId: session.user.id,
-        author: 'Autor desconhecido', // Placeholder
-        coverUrl: null, // <<< CORREÇÃO APLICADA AQUI
+        author: 'Autor desconhecido',
+        coverUrl: null,
       },
     });
 
-    revalidatePath("/(app)/dashboard"); 
+    revalidatePath("/(app)/dashboard");
     return { success: "Livro enviado com sucesso!" };
 
   } catch (error) {
@@ -57,26 +49,26 @@ export async function uploadBook(formData: FormData) {
 }
 
 export async function updateBookProgress({ bookId, progress, currentLocation }: { bookId: string, progress: number, currentLocation: string }) {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
-        return { error: "Não autorizado." };
-    }
+  const session = await getServerSession(authOptions);
+  if (!session || !session.user) {
+      return { error: "Não autorizado." };
+  }
 
-    try {
-        await prisma.book.update({
-            where: {
-                id: bookId,
-                userId: session.user.id,
-            },
-            data: {
-                progress,
-                currentLocation,
-            },
-        });
-        revalidatePath("/(app)/dashboard");
-        return { success: true };
-    } catch (error) {
-        console.error("Falha ao atualizar o progresso:", error);
-        return { error: "Não foi possível guardar o seu progresso." };
-    }
+  try {
+      await prisma.book.update({
+          where: {
+              id: bookId,
+              userId: session.user.id,
+          },
+          data: {
+              progress,
+              currentLocation,
+          },
+      });
+      revalidatePath("/(app)/dashboard");
+      return { success: true };
+  } catch (error) {
+      console.error("Falha ao atualizar o progresso:", error);
+      return { error: "Não foi possível guardar o seu progresso." };
+  }
 }
