@@ -7,23 +7,14 @@ import { useDrag } from "@use-gesture/react";
 import { animated, useSpring } from "@react-spring/web";
 import { useDebouncedCallback } from 'use-debounce';
 import { updateBookProgress } from "@/app/actions/bookActions";
+import { createHighlight, getHighlightsForBook } from "@/app/actions/highlightActions";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-import { 
-  Loader2, 
-  Home, 
-  ChevronLeft, 
-  ChevronRight,
-  Settings,
-  Sun,
-  Moon,
-  Book,
-  ZoomIn,
-  ZoomOut
-} from "lucide-react";
+import { Loader2, Home, ChevronLeft, ChevronRight, Settings, Sun, Moon, Book as BookIcon, ZoomIn, ZoomOut, Highlighter } from "lucide-react";
 
 interface EpubViewerProps {
   url: string;
@@ -31,8 +22,11 @@ interface EpubViewerProps {
   bookId: string;
 }
 
-const MIN_FONT_SIZE = 14;
-const MAX_FONT_SIZE = 28;
+interface Selection {
+  cfiRange: string;
+  text: string;
+  rect: DOMRect;
+}
 
 export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -44,7 +38,8 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   const [fontSize, setFontSize] = useState(18);
   const [progress, setProgress] = useState(0);
   const [currentLocation, setCurrentLocation] = useState(0);
-  
+  const [selection, setSelection] = useState<Selection | null>(null);
+
   const [{ x }, api] = useSpring(() => ({ x: 0 }));
 
   const nextPage = useCallback(() => renditionRef.current?.next(), []);
@@ -52,9 +47,7 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
 
   const hideUiAfterDelay = useCallback(() => {
     if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
-    uiTimeoutRef.current = setTimeout(() => {
-      setUiVisible(false);
-    }, 3000);
+    uiTimeoutRef.current = setTimeout(() => setUiVisible(false), 3000);
   }, []);
   
   const cancelHideUi = useCallback(() => {
@@ -62,19 +55,14 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   }, []);
 
   const toggleUi = useCallback(() => {
-    setUiVisible(currentVisibility => {
-      const newVisibility = !currentVisibility;
-      if (newVisibility) hideUiAfterDelay();
-      else cancelHideUi();
-      return newVisibility;
+    setUiVisible(v => {
+      if (!v) hideUiAfterDelay(); else cancelHideUi();
+      return !v;
     });
   }, [hideUiAfterDelay, cancelHideUi]);
 
   const changeFontSize = useCallback((direction: 'increase' | 'decrease') => {
-    setFontSize(currentSize => {
-      let newSize = direction === 'increase' ? currentSize + 2 : currentSize - 2;
-      return Math.max(MIN_FONT_SIZE, Math.min(newSize, MAX_FONT_SIZE));
-    });
+    setFontSize(s => Math.max(14, Math.min(s + (direction === 'increase' ? 2 : -2), 28)));
   }, []);
 
   const setTheme = useCallback((theme: 'light' | 'dark' | 'sepia') => {
@@ -87,18 +75,26 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
     }
   }, [fontSize]);
 
-  const debouncedUpdateProgress = useDebouncedCallback(
-    (newLocation: Location) => {
-      const cfi = newLocation.start.cfi;
-      const calculatedProgress = Math.round(newLocation.start.percentage * 100);
-      updateBookProgress({
-        bookId,
-        progress: calculatedProgress,
-        currentLocation: cfi,
-      });
-    },
-    2000 // Aguarda 2 segundos após a última mudança de página para salvar
-  );
+  const debouncedUpdateProgress = useDebouncedCallback((loc: Location) => {
+    updateBookProgress({ bookId, progress: Math.round(loc.start.percentage * 100), currentLocation: loc.start.cfi });
+  }, 2000);
+
+  const handleMarkHighlight = async () => {
+    if (!selection) return;
+    
+    renditionRef.current?.annotations.add("highlight", selection.cfiRange, {}, undefined, "hl", { "fill": "yellow", "fill-opacity": "0.3" });
+    
+    const result = await createHighlight({ bookId, cfiRange: selection.cfiRange, text: selection.text });
+
+    if (result.success) {
+      toast.success("Trecho marcado com sucesso!");
+    } else {
+      toast.error("Erro ao marcar o trecho.");
+      renditionRef.current?.annotations.remove(selection.cfiRange, "highlight");
+    }
+    
+    setSelection(null);
+  }
 
   const bind = useDrag(({ down, movement: [mx], direction: [dx], velocity: [vx] }) => {
     const trigger = vx > 0.2 || Math.abs(mx) > window.innerWidth / 4;
@@ -111,36 +107,48 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
 
   useEffect(() => {
     if (!viewerRef.current) return;
+    let rendition: Rendition;
 
-    let book = ePub(url);
-    let rendition = book.renderTo(viewerRef.current, {
-      width: "100%", height: "100%", spread: "auto", flow: "paginated",
-    });
+    const book = ePub(url);
+    rendition = book.renderTo(viewerRef.current, { width: "100%", height: "100%", spread: "auto", flow: "paginated" });
     renditionRef.current = rendition;
 
     rendition.themes.register("light", { body: { "background-color": "#FFFFFF", "color": "#000000" } });
     rendition.themes.register("dark", { body: { "background-color": "#121212", "color": "#E0E0E0" } });
     rendition.themes.register("sepia", { body: { "background-color": "#fbf0d9", "color": "#5b4636" } });
     
-    book.ready.then(() => book.locations.generate(1650))
-      .then(() => {
-        setIsLoading(false);
-        const initialLocation = window.location.hash.substring(1);
-        rendition.display(initialLocation || undefined);
-        setTheme('light');
-        rendition.themes.fontSize(`${fontSize}px`);
-        hideUiAfterDelay();
+    book.ready.then(() => book.locations.generate(1650)).then(async () => {
+      const existingHighlights = await getHighlightsForBook(bookId);
+      existingHighlights.forEach(hl => {
+        rendition.annotations.add("highlight", hl.cfiRange, {}, undefined, "hl", { "fill": "yellow", "fill-opacity": "0.3" });
       });
 
-    rendition.on("relocated", (location: Location) => {
-      if (book.locations) {
-        const cfiLocation = location.start.location;
-        const percentage = Math.round(book.locations.percentageFromCfi(location.start.cfi) * 100);
-        setCurrentLocation(cfiLocation);
-        setProgress(percentage);
-        hideUiAfterDelay();
-        debouncedUpdateProgress(location);
-      }
+      const initialLocation = window.location.hash.substring(1);
+      rendition.display(initialLocation || undefined);
+      setTheme('light');
+      rendition.themes.fontSize(`${fontSize}px`);
+      setIsLoading(false);
+      hideUiAfterDelay();
+    });
+
+    rendition.on("relocated", (loc: Location) => {
+      setCurrentLocation(loc.start.location);
+      setProgress(Math.round(loc.start.percentage * 100));
+      hideUiAfterDelay();
+      debouncedUpdateProgress(loc);
+    });
+    
+    rendition.on("selected", (cfiRange: string, contents: any) => {
+        const range = rendition.getRange(cfiRange);
+        if (range) {
+            const rect = range.getBoundingClientRect();
+            setSelection({
+                cfiRange,
+                text: range.toString(),
+                rect,
+            });
+        }
+        contents.window.getSelection().removeAllRanges();
     });
 
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -154,11 +162,11 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
       document.removeEventListener("keydown", handleKeyPress);
       if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
     };
-  }, [url, nextPage, prevPage, setTheme, hideUiAfterDelay, debouncedUpdateProgress, bookId, fontSize]);
+  }, [url, bookId, nextPage, prevPage, setTheme, hideUiAfterDelay, debouncedUpdateProgress, fontSize]);
     
-  // ... (o JSX do return permanece igual)
   return (
-    <div className="relative w-screen h-screen flex flex-col items-center bg-zinc-100 dark:bg-zinc-900 overflow-hidden select-none">
+    // <<< CORREÇÃO APLICADA AQUI: A classe 'select-none' foi removida >>>
+    <div className="relative w-screen h-screen flex flex-col items-center bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
       
       {isLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
@@ -166,7 +174,23 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
         </div>
       )}
 
-      <animated.div
+      {selection && (
+        <div 
+          className="absolute z-40" 
+          style={{ 
+            left: `${selection.rect.left + selection.rect.width / 2}px`, 
+            top: `${selection.rect.top - 40}px`, 
+            transform: 'translateX(-50%)' 
+          }}
+        >
+          <Button onClick={handleMarkHighlight}>
+            <Highlighter className="mr-2" size={16}/>
+            Marcar trecho
+          </Button>
+        </div>
+      )}
+
+       <animated.div
         onMouseEnter={cancelHideUi}
         onMouseLeave={hideUiAfterDelay}
         style={{ 
@@ -196,18 +220,18 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
             <DropdownMenuContent align="end">
               <div className="px-2 py-1.5 text-sm font-semibold">Fonte</div>
               <div className="flex items-center justify-center gap-2 px-2 py-1">
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeFontSize('decrease')} disabled={fontSize <= MIN_FONT_SIZE}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeFontSize('decrease')} disabled={fontSize <= 14}>
                   <ZoomOut className="h-4 w-4" />
                 </Button>
                 <span className="text-sm font-medium w-6 text-center">{fontSize}</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeFontSize('increase')} disabled={fontSize >= MAX_FONT_SIZE}>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeFontSize('increase')} disabled={fontSize >= 28}>
                   <ZoomIn className="h-4 w-4" />
                 </Button>
               </div>
               <div className="px-2 py-1.5 text-sm font-semibold">Tema</div>
               <DropdownMenuItem onClick={() => setTheme('light')}><Sun className="mr-2 h-4 w-4"/> Claro</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTheme('dark')}><Moon className="mr-2 h-4 w-4"/> Escuro</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setTheme('sepia')}><Book className="mr-2 h-4 w-4"/> Sépia</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme('sepia')}><BookIcon className="mr-2 h-4 w-4"/> Sépia</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -229,6 +253,7 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
           <animated.div
             {...bind()}
             className="absolute inset-0 z-20"
+            onPointerDown={() => setSelection(null)}
           >
             <div className="absolute left-0 top-0 h-full w-[25%]" onClick={prevPage}></div>
             <div className="absolute left-[25%] top-0 h-full w-[50%]" onClick={toggleUi}></div>

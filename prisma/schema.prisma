@@ -9,6 +9,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum PostType {
+  POST
+  CHALLENGE
+  EXCERPT
+}
+
 model Book {
   id              String   @id @default(cuid())
   title           String
@@ -17,16 +23,75 @@ model Book {
   filePath        String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  
-  // Campos adicionados
   progress        Int      @default(0)
   currentLocation String?
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  posts     Post[]
+  Highlight Highlight[]
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  type      PostType @default(POST)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  comments  Comment[]
+  reactions Reaction[]
 }
 
-// NextAuth.js models
+model Comment {
+  id        String   @id @default(cuid())
+  text      String
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  // Relação para respostas (comentários aninhados)
+  parentId String?
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies  Comment[] @relation("CommentReplies")
+}
+
+model Reaction {
+  id    String @id @default(cuid())
+  emoji String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId, emoji])
+}
+
+model Highlight {
+  id        String   @id @default(cuid())
+  cfiRange  String   @db.Text // Localização precisa do trecho no EPUB
+  text      String   @db.Text // O texto do trecho
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bookId String
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -40,8 +105,7 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -66,11 +130,15 @@ model User {
   password      String
   emailVerified DateTime?
   image         String?
-  role          UserRole  @default(USER) // Novo campo com valor padrão 'USER'
+  role          UserRole  @default(USER)
 
-  accounts Account[]
-  sessions Session[]
-  books    Book[]
+  accounts  Account[]
+  sessions  Session[]
+  books     Book[]
+  posts     Post[]
+  comments  Comment[]
+  reactions Reaction[]
+  Highlight Highlight[]
 }
 
 model VerificationToken {
