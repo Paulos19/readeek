@@ -6,13 +6,19 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
 
-export async function createHighlight({ bookId, cfiRange, text }: { bookId: string, cfiRange: string, text: string }) {
+export async function createHighlight({ bookId, cfiRange, text, color }: { bookId: string, cfiRange: string, text: string, color: string }) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return { error: "Não autorizado." };
 
     try {
         const newHighlight = await prisma.highlight.create({
-            data: { bookId, userId: session.user.id, cfiRange, text },
+            data: { 
+                bookId, 
+                userId: session.user.id, 
+                cfiRange, 
+                text, 
+                color // Guarda a cor na base de dados
+            },
         });
         revalidatePath(`/read/${bookId}`);
         return { success: "Trecho guardado com sucesso!", highlight: newHighlight };
@@ -37,13 +43,11 @@ export async function getHighlightsForBook(bookId: string) {
     }
 }
 
-// <<< NOVA AÇÃO PARA APAGAR TRECHOS >>>
 export async function deleteHighlight(highlightId: string) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return { error: "Não autorizado." };
 
     try {
-        // Garante que o utilizador só pode apagar os seus próprios trechos
         const highlight = await prisma.highlight.findFirst({
             where: { id: highlightId, userId: session.user.id }
         });

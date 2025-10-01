@@ -70,12 +70,9 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
   const [pendingSelection, setPendingSelection] = useState<Selection | null>(null);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0].value);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  
-  // *** INÍCIO DA CORREÇÃO PRINCIPAL ***
-  // Usamos uma ref para garantir que o event listener sempre tenha o valor mais recente de isHighlighting
+
   const isHighlightingRef = useRef(isHighlighting);
   isHighlightingRef.current = isHighlighting;
-  // *** FIM DA CORREÇÃO PRINCIPAL ***
 
   const nextPage = useCallback(() => renditionRef.current?.next(), []);
   const prevPage = useCallback(() => renditionRef.current?.prev(), []);
@@ -123,7 +120,13 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
     
     renditionRef.current?.annotations.add("highlight", pendingSelection.cfiRange, {}, undefined, "hl", { "fill": highlightColor });
     
-    const result = await createHighlight({ bookId, cfiRange: pendingSelection.cfiRange, text: pendingSelection.text });
+    // 1. Envie a 'highlightColor' para a ação do servidor
+    const result = await createHighlight({ 
+      bookId, 
+      cfiRange: pendingSelection.cfiRange, 
+      text: pendingSelection.text, 
+      color: highlightColor 
+    });
 
     if (result.success && result.highlight) {
       toast.success("Trecho marcado com sucesso!");
@@ -172,8 +175,10 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
     book.ready.then(() => book.locations.generate(1650)).then(async () => {
       const existingHighlights = await getHighlightsForBook(bookId);
       setHighlights(existingHighlights);
+
+      // 2. Use a cor guardada (hl.color) ao renderizar os destaques
       existingHighlights.forEach(hl => {
-        rendition.annotations.add("highlight", hl.cfiRange, {}, undefined, "hl", { "fill": "yellow", "fill-opacity": "0.3" });
+        rendition.annotations.add("highlight", hl.cfiRange, {}, undefined, "hl", { "fill": hl.color, "fill-opacity": "0.4" });
       });
 
       const initialLocation = window.location.hash.substring(1);
@@ -191,8 +196,6 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
     });
     
     rendition.on("selected", (cfiRange: string) => {
-        // *** CORREÇÃO APLICADA AQUI ***
-        // Usamos a ref em vez do estado diretamente
         if (!isHighlightingRef.current) return;
         
         const range = rendition.getRange(cfiRange);

@@ -81,8 +81,9 @@ model Reaction {
 
 model Highlight {
   id        String   @id @default(cuid())
-  cfiRange  String   @db.Text // Localização precisa do trecho no EPUB
-  text      String   @db.Text // O texto do trecho
+  cfiRange  String   @db.Text
+  text      String   @db.Text
+  color     String   @default("rgba(255, 255, 0, 0.4)")
   createdAt DateTime @default(now())
 
   userId String
