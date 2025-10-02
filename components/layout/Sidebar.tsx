@@ -10,6 +10,7 @@ import {
   Library     // Ícone para a Biblioteca
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ReadeekLogo } from "../icons/ReadeekLogo";
 
 // ATUALIZAÇÃO: A lista de links agora reflete a nova estrutura do Dashboard.
 const navLinks = [
@@ -28,7 +29,7 @@ export function Sidebar() {
       <div className="flex h-full max-h-screen flex-col gap-4">
         <div className="flex h-16 items-center border-b px-6">
           <Link href="/" className="text-2xl font-bold tracking-tight">
-            Readeek
+            <ReadeekLogo/>
           </Link>
         </div>
         <nav className="flex flex-col gap-1 p-4 pt-0">
