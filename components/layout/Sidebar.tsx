@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Book, Bookmark, Settings } from "lucide-react";
+import { Book, Bookmark, Settings, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
   { href: "/dashboard", label: "Biblioteca", icon: Book },
   { href: "/dashboard/highlights", label: "Trechos", icon: Bookmark },
+  { href: "/shop", label: "Loja", icon: Store },
   { href: "/dashboard/settings", label: "Configurações", icon: Settings },
 ];
 

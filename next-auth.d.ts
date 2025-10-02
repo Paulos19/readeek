@@ -1,35 +1,35 @@
 // next-auth.d.ts
 
 import { UserRole } from "@prisma/client";
-import NextAuth, { DefaultSession, DefaultUser, AdapterUser } from "next-auth"; // Importe AdapterUser
+import NextAuth, { DefaultSession, DefaultUser, AdapterUser } from "next-auth";
 import { JWT, DefaultJWT } from "next-auth/jwt";
 
-// Estendendo os tipos do JWT
 declare module "next-auth/jwt" {
   interface JWT extends DefaultJWT {
     id: string;
     role: UserRole;
+    credits?: number; // Adicione credits aqui
   }
 }
 
-// Estendendo os tipos da Sessão, do Usuário e do AdapterUser
 declare module "next-auth" {
   interface Session {
     user: {
       id: string;
-      role: UserRole; // A sessão FINAL terá a role
+      role: UserRole;
+      credits?: number; // Adicione credits aqui
     } & DefaultSession["user"];
   }
 
-  // Adicione a role opcional aqui para o objeto User principal
   interface User extends DefaultUser {
-    role?: UserRole; // Torne opcional
+    role?: UserRole;
+    credits?: number; // Adicione credits aqui
   }
 }
 
-// Estenda o AdapterUser também, que é o tipo usado internamente pelo adapter
 declare module "next-auth/adapters" {
     interface AdapterUser extends User {
-        role?: UserRole; // Torne opcional
+        role?: UserRole;
+        credits?: number; // Adicione credits aqui
     }
 }

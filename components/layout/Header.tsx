@@ -4,7 +4,9 @@ import { signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogIn, LogOut, User as UserIcon, LayoutGrid, UserPlus, Menu, Book, Bookmark, Settings } from "lucide-react";
+import {
+  Menu, Book, Bookmark, Settings, Bell, Store, Coins, LogOut, User as UserIcon
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,11 +18,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { LibraryDropdown } from "./LibraryDropdown";
 
 const navLinks = [
   { href: "/dashboard", label: "Biblioteca", icon: Book },
   { href: "/dashboard/highlights", label: "Trechos", icon: Bookmark },
-  { href: "/dashboard/settings", label: "Configurações", icon: Settings },
+  { href: "/dashboard/notifications", label: "Notificações", icon: Bell },
+  { href: "/shop", label: "Loja", icon: Store },
 ];
 
 export default function Header() {
@@ -29,11 +33,15 @@ export default function Header() {
   const isLoading = status === "loading";
   const user = session?.user;
 
+  // @ts-ignore
+  const userCredits = user?.credits ?? 0;
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <nav className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
+        
+        {/* Lado Esquerdo: Logo e Menu Mobile */}
         <div className="flex items-center gap-4">
-          {/* Menu Hamburguer para Mobile */}
           <div className="md:hidden">
             <Sheet>
               <SheetTrigger asChild>
@@ -43,10 +51,10 @@ export default function Header() {
               </SheetTrigger>
               <SheetContent side="left" className="w-[280px]">
                 <div className="flex flex-col h-full">
-                  <Link href="/" className="text-2xl font-bold tracking-tight mb-6">
-                    Readeek
-                  </Link>
-                  <nav className="flex flex-col gap-2">
+                  <div className="flex h-16 items-center border-b px-6">
+                   <Link href="/" className="text-2xl font-bold tracking-tight">Readeek</Link>
+                  </div>
+                  <nav className="flex flex-col gap-1 p-4 pt-4">
                     {navLinks.map((link) => {
                       const isActive = pathname === link.href;
                       return (
@@ -55,9 +63,7 @@ export default function Header() {
                             href={link.href}
                             className={cn(
                               "flex items-center gap-3 rounded-md px-3 py-2 text-base font-medium transition-colors",
-                              isActive
-                                ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                              isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                             )}
                           >
                             <link.icon className="h-5 w-5" />
@@ -71,69 +77,75 @@ export default function Header() {
               </SheetContent>
             </Sheet>
           </div>
-
           <Link href="/" className="hidden md:block text-2xl font-bold tracking-tight">
             Readeek
           </Link>
         </div>
         
+        {/* Lado Direito: Ações e Perfil do Utilizador */}
         <div className="flex items-center gap-2">
           {isLoading ? (
-            <div className="h-10 w-28 animate-pulse rounded-md bg-muted"></div>
+            <div className="h-10 w-40 animate-pulse rounded-md bg-muted"></div>
           ) : user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                  <Avatar>
-                    <AvatarImage src={user.image ?? undefined} alt={user.name ?? "Avatar"} />
-                    <AvatarFallback>{user.name?.charAt(0).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user.name}</p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {user.email}
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard">
-                    <LayoutGrid className="mr-2 h-4 w-4" />
-                    <span>Meu Dashboard</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild disabled>
-                  <Link href="/profile">
-                    <UserIcon className="mr-2 h-4 w-4" />
-                    <span>Meu Perfil</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => signOut({ callbackUrl: "/" })}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sair</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
             <>
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/login">
-                  <LogIn className="mr-2 h-4 w-4" />
-                  Entrar
-                </Link>
-              </Button>
-              <Button size="sm" asChild>
-                <Link href="/register">
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  Registar
-                </Link>
-              </Button>
+              {/* Menu Rápido da Biblioteca */}
+              <LibraryDropdown />
+
+              {/* Exibição de Créditos */}
+              <Link href="/shop">
+                <div className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-muted/80">
+                  <Coins className="h-5 w-5 text-amber-500" />
+                  <span>{userCredits}</span>
+                </div>
+              </Link>
+
+              {/* Dropdown do Perfil */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                    <Avatar>
+                      <AvatarImage src={user.image ?? undefined} alt={user.name ?? "Avatar"} />
+                      <AvatarFallback>{user.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{user.name}</p>
+                      <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href={`/profile/${user.id}`}>
+                      <UserIcon className="mr-2 h-4 w-4" />
+                      <span>Meu Perfil</span>
+                    </Link>
+                  </DropdownMenuItem>
+                   <DropdownMenuItem asChild>
+                    <Link href="/dashboard/settings">
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>Configurações</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => signOut({ callbackUrl: "/" })}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Sair</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
+          ) : (
+             <div className="flex items-center gap-2">
+                 <Button variant="ghost" asChild>
+                    <Link href="/login">Entrar</Link>
+                 </Button>
+                 <Button asChild>
+                    <Link href="/register">Registar</Link>
+                 </Button>
+             </div>
           )}
         </div>
       </nav>

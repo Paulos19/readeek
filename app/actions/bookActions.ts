@@ -72,3 +72,63 @@ export async function updateBookProgress({ bookId, progress, currentLocation }: 
       return { error: "Não foi possível guardar o seu progresso." };
   }
 }
+
+export async function getRecentSharableBooks() {
+  try {
+    return await prisma.book.findMany({
+      where: { 
+        sharable: true // Apenas livros que os donos marcaram como partilháveis
+      },
+      orderBy: { 
+        createdAt: 'desc' // Ordena pelos mais recentes
+      },
+      take: 10, // Limita a 10 livros
+      include: {
+        user: { // Inclui informações básicas do dono do livro
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Falha ao buscar livros recentes:", error);
+    return [];
+  }
+}
+
+export async function getCurrentlyReadingBook() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  try {
+    // Busca o livro do utilizador que foi atualizado mais recentemente e não está concluído
+    const book = await prisma.book.findFirst({
+      where: {
+        userId: session.user.id,
+        progress: {
+          lt: 100, // lt = less than (menor que 100)
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+    
+    // Se não houver livros em progresso, retorna o mais recente adicionado
+    if (!book) {
+        return prisma.book.findFirst({
+            where: { userId: session.user.id },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    return book;
+  } catch (error) {
+    console.error("Erro ao buscar livro atual:", error);
+    return null;
+  }
+}

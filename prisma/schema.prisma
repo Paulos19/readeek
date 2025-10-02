@@ -9,10 +9,71 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// -- ENUMS --
 enum PostType {
   POST
   CHALLENGE
   EXCERPT
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum InsigniaType {
+  FREE
+  PREMIUM
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// -- MODELS --
+
+model User {
+  id                String            @id @default(cuid())
+  name              String?
+  email             String            @unique
+  password          String
+  emailVerified     DateTime?
+  image             String?
+  role              UserRole          @default(USER)
+  about             String?           @db.Text
+  profileVisibility ProfileVisibility @default(PUBLIC)
+  credits           Int               @default(50) // <-- ADICIONE ESTA LINHA
+
+  accounts         Account[]
+  sessions         Session[]
+  books            Book[]
+  posts            Post[]
+  comments         Comment[]
+  reactions        Reaction[]
+  Highlight        Highlight[]
+  sentRequests     BookRequest[]      @relation("SentRequests")
+  receivedRequests BookRequest[]      @relation("ReceivedRequests")
+  insignias        InsigniasOnUsers[]
+  following        Follows[]          @relation("follower")
+  followers        Follows[]          @relation("following")
+}
+
+// Modelo para a relação de seguidores (este modelo estava em falta)
+model Follows {
+  followerId String
+  follower   User   @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+
+  followingId String
+  following   User   @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
 }
 
 model Book {
@@ -25,54 +86,82 @@ model Book {
   updatedAt       DateTime @updatedAt
   progress        Int      @default(0)
   currentLocation String?
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  posts     Post[]
-  Highlight Highlight[]
-}
-
-model Post {
-  id        String   @id @default(cuid())
-  content   String   @db.Text
-  type      PostType @default(POST)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  sharable        Boolean  @default(false)
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  bookId String
-  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  posts     Post[]
+  Highlight Highlight[]
+  requests  BookRequest[] @relation("RequestedBook")
+}
 
+model BookRequest {
+  id          String        @id @default(cuid())
+  createdAt   DateTime      @default(now())
+  status      RequestStatus @default(PENDING)
+  bookId      String
+  book        Book          @relation("RequestedBook", fields: [bookId], references: [id], onDelete: Cascade)
+  requesterId String
+  requester   User          @relation("SentRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+  ownerId     String
+  owner       User          @relation("ReceivedRequests", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, requesterId])
+}
+
+model Insignia {
+  id          String             @id @default(cuid())
+  name        String
+  description String
+  imageUrl    String
+  type        InsigniaType       @default(FREE)
+  price       Int? // <-- ADICIONE ESTA LINHA (opcional para itens grátis)
+  users       InsigniasOnUsers[]
+}
+
+model InsigniasOnUsers {
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  insignia   Insignia @relation(fields: [insigniaId], references: [id], onDelete: Cascade)
+  insigniaId String
+  assignedAt DateTime @default(now())
+
+  @@id([userId, insigniaId])
+}
+
+model Post {
+  id        String     @id @default(cuid())
+  content   String     @db.Text
+  type      PostType   @default(POST)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    String
+  book      Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
   comments  Comment[]
   reactions Reaction[]
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   text      String
-  createdAt DateTime @default(now())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  postId String
-  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  // Relação para respostas (comentários aninhados)
-  parentId String?
-  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  replies  Comment[] @relation("CommentReplies")
+  createdAt DateTime  @default(now())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies   Comment[] @relation("CommentReplies")
 }
 
 model Reaction {
-  id    String @id @default(cuid())
-  emoji String
-
+  id     String @id @default(cuid())
+  emoji  String
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   postId String
   post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
@@ -85,12 +174,10 @@ model Highlight {
   text      String   @db.Text
   color     String   @default("rgba(255, 255, 0, 0.4)")
   createdAt DateTime @default(now())
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  bookId String
-  book   Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
 }
 
 model Account {
@@ -117,29 +204,6 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-enum UserRole {
-  USER
-  ADMIN
-}
-
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  password      String
-  emailVerified DateTime?
-  image         String?
-  role          UserRole  @default(USER)
-
-  accounts  Account[]
-  sessions  Session[]
-  books     Book[]
-  posts     Post[]
-  comments  Comment[]
-  reactions Reaction[]
-  Highlight Highlight[]
 }
 
 model VerificationToken {
