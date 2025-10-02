@@ -19,6 +19,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { LibraryDropdown } from "./LibraryDropdown";
+import { ThemeToggle } from "./ThemeToggle"; // Importação do novo componente de tema
 
 const navLinks = [
   { href: "/dashboard", label: "Biblioteca", icon: Book },
@@ -40,7 +41,6 @@ export default function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <nav className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
         
-        {/* Lado Esquerdo: Logo e Menu Mobile */}
         <div className="flex items-center gap-4">
           <div className="md:hidden">
             <Sheet>
@@ -82,16 +82,12 @@ export default function Header() {
           </Link>
         </div>
         
-        {/* Lado Direito: Ações e Perfil do Utilizador */}
         <div className="flex items-center gap-2">
           {isLoading ? (
             <div className="h-10 w-40 animate-pulse rounded-md bg-muted"></div>
           ) : user ? (
             <>
-              {/* Menu Rápido da Biblioteca */}
               <LibraryDropdown />
-
-              {/* Exibição de Créditos */}
               <Link href="/shop">
                 <div className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-muted/80">
                   <Coins className="h-5 w-5 text-amber-500" />
@@ -99,7 +95,8 @@ export default function Header() {
                 </div>
               </Link>
 
-              {/* Dropdown do Perfil */}
+              <ThemeToggle />
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -139,6 +136,7 @@ export default function Header() {
             </>
           ) : (
              <div className="flex items-center gap-2">
+                 <ThemeToggle />
                  <Button variant="ghost" asChild>
                     <Link href="/login">Entrar</Link>
                  </Button>

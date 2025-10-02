@@ -50,7 +50,7 @@ model User {
   about             String?           @db.Text
   profileVisibility ProfileVisibility @default(PUBLIC)
   credits           Int               @default(50)
-  
+
   // NOVO CAMPO: Armazena os IDs das insígnias que o utilizador escolheu exibir
   displayedInsigniaIds String[]
 
@@ -61,11 +61,11 @@ model User {
   comments         Comment[]
   reactions        Reaction[]
   Highlight        Highlight[]
-  sentRequests     BookRequest[]     @relation("SentRequests")
-  receivedRequests BookRequest[]     @relation("ReceivedRequests")
+  sentRequests     BookRequest[]      @relation("SentRequests")
+  receivedRequests BookRequest[]      @relation("ReceivedRequests")
   insignias        InsigniasOnUsers[]
-  following        Follows[]         @relation("follower")
-  followers        Follows[]         @relation("following")
+  following        Follows[]          @relation("follower")
+  followers        Follows[]          @relation("following")
 }
 
 // Modelo para a relação de seguidores (este modelo estava em falta)
@@ -134,17 +134,18 @@ model InsigniasOnUsers {
 }
 
 model Post {
-  id        String     @id @default(cuid())
-  content   String     @db.Text
-  type      PostType   @default(POST)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  userId    String
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookId    String
-  book      Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  comments  Comment[]
-  reactions Reaction[]
+  id             String     @id @default(cuid())
+  content        String     @db.Text
+  type           PostType   @default(POST)
+  progressAtPost Int?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId         String
+  book           Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  comments       Comment[]
+  reactions      Reaction[]
 }
 
 model Comment {

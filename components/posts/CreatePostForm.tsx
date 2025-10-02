@@ -1,4 +1,3 @@
-// components/posts/CreatePostForm.tsx
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -8,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { createPost } from "@/app/actions/postActions";
-import { getHighlightsForBook } from "@/app/actions/highlightActions"; // Importa a ação para obter os trechos
+import { getHighlightsForBook } from "@/app/actions/highlightActions";
 import { Book, Highlight, PostType, User } from "@prisma/client";
 import {
   Select,
@@ -29,13 +28,13 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
   const [isPending, startTransition] = useTransition();
   const [postType, setPostType] = useState<PostType>("POST");
   
-  // <<< NOVOS ESTADOS PARA GERIR A SELEÇÃO DE TRECHOS >>>
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [isFetchingHighlights, setIsFetchingHighlights] = useState(false);
-  const [content, setContent] = useState(""); // Controla o conteúdo da textarea
+  const [content, setContent] = useState("");
 
-  // Efeito para buscar os trechos quando o livro selecionado muda
+  const selectedBook = books.find(b => b.id === selectedBookId);
+
   useEffect(() => {
     if (postType === 'EXCERPT' && selectedBookId) {
       setIsFetchingHighlights(true);
@@ -49,7 +48,7 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
 
   const handleSubmit = async (formData: FormData) => {
     formData.append("type", postType);
-    formData.set("content", content); // Usa o conteúdo do estado controlado
+    formData.set("content", content);
 
     startTransition(async () => {
       const result = await createPost(formData);
@@ -93,13 +92,11 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
                     <BookOpen size={16} className="mr-2"/> Trecho
                 </Button>
             </div>
-            {/* <<< NOVA SECÇÃO PARA SELECIONAR TRECHOS >>> */}
             {postType === 'EXCERPT' && selectedBookId && (
               <div>
                 <Select
                   disabled={isFetchingHighlights || highlights.length === 0}
                   onValueChange={(value) => {
-                    // Se o valor for "manual", limpa a textarea, senão, preenche-a
                     setContent(value === "manual" ? "" : value);
                   }}
                 >
@@ -148,6 +145,11 @@ export function CreatePostForm({ user, books }: CreatePostFormProps) {
               )}
             </SelectContent>
           </Select>
+
+          {selectedBook && (
+            <input type="hidden" name="progressAtPost" value={selectedBook.progress} />
+          )}
+
           <Button type="submit" disabled={isPending || !selectedBookId || !content}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Publicar

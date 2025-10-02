@@ -8,28 +8,33 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { PostType } from "@prisma/client";
 
-// ... (createPost e toggleReaction permanecem iguais)
 const PostSchema = z.object({
   content: z.string().min(1, "O post não pode estar vazio.").max(500, "O post não pode ter mais de 500 caracteres."),
   bookId: z.string().min(1, "Tem de selecionar um livro."),
   type: z.nativeEnum(PostType),
+  progressAtPost: z.coerce.number().optional(),
 });
 
 export async function createPost(formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Não autorizado. Faça login para continuar." };
+
   const validatedFields = PostSchema.safeParse({
     content: formData.get("content"),
     bookId: formData.get("bookId"),
     type: formData.get("type"),
+    progressAtPost: formData.get("progressAtPost"),
   });
+
   if (!validatedFields.success) return { error: validatedFields.error.flatten().fieldErrors };
+  
   try {
     await prisma.post.create({
       data: {
         content: validatedFields.data.content,
         bookId: validatedFields.data.bookId,
         type: validatedFields.data.type,
+        progressAtPost: validatedFields.data.progressAtPost,
         userId: session.user.id,
       },
     });
@@ -61,12 +66,10 @@ export async function toggleReaction(postId: string, emoji: string) {
   }
 }
 
-
-// <<< ATUALIZAÇÃO APLICADA AQUI >>>
 const CommentSchema = z.object({
     text: z.string().min(1, "O comentário não pode estar vazio.").max(280),
     postId: z.string(),
-    parentId: z.string().optional(), // parentId é opcional
+    parentId: z.string().optional(),
 });
 
 export async function createComment(formData: FormData) {
@@ -78,7 +81,7 @@ export async function createComment(formData: FormData) {
     const validatedFields = CommentSchema.safeParse({
         text: formData.get("text"),
         postId: formData.get("postId"),
-        parentId: formData.get("parentId") || undefined, // Converte string vazia para undefined
+        parentId: formData.get("parentId") || undefined,
     });
 
     if (!validatedFields.success) {
@@ -93,7 +96,7 @@ export async function createComment(formData: FormData) {
                 text: validatedFields.data.text,
                 postId: validatedFields.data.postId,
                 userId: session.user.id,
-                parentId: validatedFields.data.parentId, // Guarda o parentId
+                parentId: validatedFields.data.parentId,
             },
         });
         revalidatePath("/");

@@ -1,11 +1,10 @@
-// components/posts/PostCard.tsx
 "use client";
 
 import { useState, useTransition } from "react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Heart, Repeat2, BookCheck, BookOpen } from "lucide-react";
+import { MessageCircle, Heart, Repeat2, BookCheck, BookOpen, Target } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { Prisma, User } from "@prisma/client";
@@ -19,7 +18,13 @@ type PostWithExtras = Prisma.PostGetPayload<{
     book: true;
     reactions: true;
     comments: {
-        include: { user: true },
+        include: { 
+            user: true,
+            replies: {
+                include: { user: true },
+                orderBy: { createdAt: 'asc' }
+            } 
+        },
         orderBy: { createdAt: 'asc' }
     };
     _count: {
@@ -34,7 +39,6 @@ interface PostCardProps {
 }
 
 const timeAgo = (date: Date): string => {
-    // ... (função timeAgo permanece igual)
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
     let interval = seconds / 31536000;
     if (interval > 1) return Math.floor(interval) + "a";
@@ -73,6 +77,9 @@ export function PostCard({ post, currentUser }: PostCardProps) {
         return null;
     }
 
+    // Filtra apenas comentários de nível superior para o CommentSection
+    const topLevelComments = post.comments.filter(comment => !comment.parentId);
+
     return (
         <Card className="w-full">
             <CardHeader className="flex-row items-start gap-4 space-y-0 p-4">
@@ -85,11 +92,16 @@ export function PostCard({ post, currentUser }: PostCardProps) {
                         <p className="font-semibold">{post.user.name}</p>
                         <p className="text-xs text-muted-foreground">· {timeAgo(post.createdAt)}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm text-muted-foreground">
                             a ler <Link href={`/read/${post.book.id}`} className="font-medium text-foreground hover:underline">{post.book.title}</Link>
                         </p>
-                        {/* <<< INDICADOR DE TIPO DE POST ADICIONADO AQUI >>> */}
+                        {post.progressAtPost != null && (
+                            <div className="flex items-center gap-1 text-xs text-primary font-semibold">
+                                <Target size={14} />
+                                <span>{post.progressAtPost}%</span>
+                            </div>
+                        )}
                         {PostTypeIndicator() && <span className="text-xs text-muted-foreground">·</span>}
                         <PostTypeIndicator />
                     </div>
@@ -124,7 +136,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
             </CardFooter>
 
             {showComments && currentUser && (
-                <CommentSection postId={post.id} comments={post.comments} currentUser={currentUser} />
+                <CommentSection postId={post.id} comments={topLevelComments} currentUser={currentUser} />
             )}
         </Card>
     )

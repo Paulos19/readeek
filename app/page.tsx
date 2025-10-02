@@ -1,18 +1,16 @@
-// app/page.tsx
 import { getServerSession } from "next-auth";
 import { authOptions } from "./api/auth/[...nextauth]/route";
 import Header from "@/components/layout/Header";
 import { PostCard } from "@/components/posts/PostCard";
 import { CreatePostForm } from "@/components/posts/CreatePostForm";
-import { TopReadersCard } from "@/components/community/TopReadersCard";
 import { prisma } from "@/lib/prisma";
 import { PostType, User } from "@prisma/client";
 import { RecentBooksBanner } from "@/components/community/RecentBooksBanner";
 import { PostFilters } from "@/components/posts/PostFilters";
 import { LeaderboardBanner } from "@/components/community/LeaderboardBanner";
-import { getRecentSharableBooks } from "@/app/actions/bookActions";
+import { getRecentSharableBooks } from "./actions/bookActions";
+import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
 
-// 1. O tipo do searchParam deve ser uma string genérica
 interface HomePageProps {
   searchParams: {
     type?: string;
@@ -27,7 +25,6 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   const posts = await prisma.post.findMany({
     where: {
-      // 2. Apenas aplicamos o filtro se ele existir E não for 'ALL'
       type: postTypeFilter && postTypeFilter !== 'ALL' 
         ? (postTypeFilter as PostType) 
         : undefined,
@@ -38,7 +35,6 @@ export default async function Home({ searchParams }: HomePageProps) {
       book: true,
       reactions: true,
       comments: {
-        where: { parentId: null },
         orderBy: { createdAt: 'asc' },
         include: { 
           user: true,
@@ -64,12 +60,17 @@ export default async function Home({ searchParams }: HomePageProps) {
   return (
     <div>
       <Header />
+      
+      <section className="w-full bg-card border-b py-8 md:py-12">
+        <div className="container mx-auto">
+          <LeaderboardBanner />
+        </div>
+      </section>
+
       <main className="container mx-auto p-4 md:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           <div className="lg:col-span-2 flex flex-col gap-6">
-            
-            <LeaderboardBanner />
             <RecentBooksBanner books={recentBooks} currentUser={currentUser} />
             {currentUser && <CreatePostForm user={currentUser} books={userBooks} />}
             <PostFilters />
@@ -87,7 +88,7 @@ export default async function Home({ searchParams }: HomePageProps) {
           </div>
 
           <aside className="hidden lg:block sticky top-20">
-            <TopReadersCard />
+            <SuggestedUsersCard />
           </aside>
 
         </div>
