@@ -5,7 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
-import { User } from "@prisma/client";
+import { User, UserRole } from "@prisma/client"; // Importe o UserRole
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -49,18 +49,18 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        if (user.role) {
-          token.role = user.role;
-        }
+        token.role = user.role;
+        token.credits = user.credits;
       }
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id;
-        if (token.role) { 
-          session.user.role = token.role;
-        }
+        // Adiciona um valor padrão caso o role não esteja no token
+        session.user.role = token.role ?? UserRole.USER; 
+        // Adiciona um valor padrão (0) caso os créditos não estejam no token
+        session.user.credits = token.credits ?? 0;
       }
       return session;
     },
