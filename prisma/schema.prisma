@@ -49,7 +49,10 @@ model User {
   role              UserRole          @default(USER)
   about             String?           @db.Text
   profileVisibility ProfileVisibility @default(PUBLIC)
-  credits           Int               @default(50) // <-- ADICIONE ESTA LINHA
+  credits           Int               @default(50)
+  
+  // NOVO CAMPO: Armazena os IDs das insígnias que o utilizador escolheu exibir
+  displayedInsigniaIds String[]
 
   accounts         Account[]
   sessions         Session[]
@@ -58,11 +61,11 @@ model User {
   comments         Comment[]
   reactions        Reaction[]
   Highlight        Highlight[]
-  sentRequests     BookRequest[]      @relation("SentRequests")
-  receivedRequests BookRequest[]      @relation("ReceivedRequests")
+  sentRequests     BookRequest[]     @relation("SentRequests")
+  receivedRequests BookRequest[]     @relation("ReceivedRequests")
   insignias        InsigniasOnUsers[]
-  following        Follows[]          @relation("follower")
-  followers        Follows[]          @relation("following")
+  following        Follows[]         @relation("follower")
+  followers        Follows[]         @relation("following")
 }
 
 // Modelo para a relação de seguidores (este modelo estava em falta)

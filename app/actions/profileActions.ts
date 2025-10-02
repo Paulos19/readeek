@@ -42,3 +42,34 @@ export async function updateUserProfile(data: Partial<ProfileUpdateData>) {
     return { error: "Não foi possível guardar as alterações." };
   }
 }
+
+export async function updateDisplayedInsignias(insigniaIds: string[]) {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { error: "Não autorizado." };
+  }
+
+  // Limita a um máximo de 3 insígnias para exibição
+  if (insigniaIds.length > 3) {
+      return { error: "Pode exibir no máximo 3 insígnias." };
+  }
+
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        displayedInsigniaIds: insigniaIds,
+      },
+    });
+
+    revalidatePath(`/profile/${userId}`);
+    revalidatePath("/dashboard/settings");
+
+    return { success: "Insígnias atualizadas com sucesso!" };
+  } catch (error) {
+    console.error("Falha ao atualizar insígnias:", error);
+    return { error: "Não foi possível guardar as alterações." };
+  }
+}
