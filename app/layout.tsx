@@ -4,6 +4,7 @@ import "./globals.css";
 import AuthProvider from "@/components/providers/AuthProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "next-themes";
+import { MobileNavigation } from "@/components/layout/MobileNavigation";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,14 +20,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={inter.className}>
+      {/* Adicionado padding na parte inferior para mobile para a tab bar não sobrepor o conteúdo */}
+      <body className={`${inter.className} pb-32 md:pb-0`}>
         <AuthProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             {children}
             <Toaster richColors />
+            {/* Nova barra de navegação para mobile */}
+            <MobileNavigation />
           </ThemeProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
+

@@ -17,6 +17,7 @@ export default {
     },
     extend: {
       colors: {
+        // COR NEON REMOVIDA
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -50,6 +51,13 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+      },
+      // ATUALIZAÇÃO: Efeito de brilho agora usa a cor primária
+      dropShadow: {
+        'primary-glow': [
+          '0 0 5px hsla(var(--primary), 0.6)',
+          '0 0 12px hsla(var(--primary), 0.4)'
+        ]
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -1,6 +1,6 @@
 "use server";
 
-import { put } from "@vercel/blob"; // 1. Importe o 'put' do Vercel Blob
+import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../api/auth/[...nextauth]/route";
@@ -23,16 +23,14 @@ export async function uploadBook(formData: FormData) {
   const filename = file.name.replace(/\s/g, '_');
 
   try {
-    // 2. Substitua a lógica de 'writeFile' pela chamada 'put'
     const blob = await put(filename, file, {
-      access: 'public', // O ficheiro precisa de ser público para ser lido pelo EpubViewer
+      access: 'public',
     });
 
-    // 3. Guarde o URL retornado pelo Vercel Blob na base de dados
     await prisma.book.create({
       data: {
         title: file.name.replace(/\.epub$/i, ''),
-        filePath: blob.url, // Usamos o URL do blob
+        filePath: blob.url,
         userId: session.user.id,
         author: 'Autor desconhecido',
         coverUrl: null,
@@ -62,6 +60,7 @@ export async function updateBookProgress({ bookId, progress, currentLocation }: 
           },
           data: {
               progress,
+              updatedAt: new Date(), // Garante que este livro será o mais recente
               currentLocation,
           },
       });
@@ -77,14 +76,14 @@ export async function getRecentSharableBooks() {
   try {
     return await prisma.book.findMany({
       where: { 
-        sharable: true // Apenas livros que os donos marcaram como partilháveis
+        sharable: true
       },
       orderBy: { 
-        createdAt: 'desc' // Ordena pelos mais recentes
+        createdAt: 'desc'
       },
-      take: 10, // Limita a 10 livros
+      take: 10,
       include: {
-        user: { // Inclui informações básicas do dono do livro
+        user: {
           select: {
             id: true,
             name: true,
