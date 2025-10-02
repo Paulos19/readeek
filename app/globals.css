@@ -1,5 +1,3 @@
-/* app/globals.css */
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -67,8 +65,14 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
   }
+}
 
-   body {
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
     background-image: url('/background-texture.svg');
     background-repeat: repeat;
   }

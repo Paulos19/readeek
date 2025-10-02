@@ -2,11 +2,14 @@
   <defs>
     <style>
       .icon {
-        stroke: hsl(0 0% 50% / 0.07); /* Cor do ícone com opacidade muito baixa */
+        stroke: hsl(0 0% 50% / 0.07);
         stroke-width: 1.5;
         fill: none;
         stroke-linecap: round;
         stroke-linejoin: round;
+      }
+      .dark .icon {
+        stroke: hsl(0 0% 80% / 0.05);
       }
     </style>
   </defs>

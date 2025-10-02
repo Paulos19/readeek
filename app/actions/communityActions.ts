@@ -1,4 +1,3 @@
-// app/actions/communityActions.ts
 "use server";
 
 import { prisma } from "@/lib/prisma";
@@ -97,4 +96,70 @@ export async function getSuggestedUsers() {
   });
 
   return suggestedUsers;
+}
+
+
+// NOVO TIPO E FUNÇÃO ABAIXO
+
+const calculateScore = (user: {
+  _count: { posts: number; reactions: number; comments: number; };
+}) => {
+  return (user._count.posts * 5) + (user._count.reactions * 1) + (user._count.comments * 2);
+};
+
+export type FullRankingUser = Prisma.UserGetPayload<{
+    select: {
+        id: true;
+        name: true;
+        image: true;
+        email: true; // Para o @username
+        _count: {
+            select: { posts: true; reactions: true; comments: true; }
+        }
+    }
+}> & { score: number };
+
+export async function getFullRanking({ page = 1, limit = 15 }: { page: number, limit: number }) {
+  try {
+    const skip = (page - 1) * limit;
+
+    // A busca de todos os utilizadores para ordenar por pontuação pode ser pesada.
+    // Uma abordagem otimizada é ordenar na base de dados se possível,
+    // ou manter a paginação simples e ordenar apenas o resultado da página atual.
+    
+    const allUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        email: true,
+        _count: {
+          select: {
+            posts: true,
+            reactions: true,
+            comments: true,
+          },
+        },
+      },
+    });
+
+    const scoredUsers = allUsers
+      .map(user => ({ ...user, score: calculateScore(user) }))
+      .sort((a, b) => b.score - a.score);
+      
+    const totalUsers = scoredUsers.length;
+    const paginatedUsers = scoredUsers.slice(skip, skip + limit);
+
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    return {
+      users: paginatedUsers as FullRankingUser[],
+      totalPages,
+      currentPage: page,
+    };
+
+  } catch (error) {
+    console.error("Falha ao obter o ranking completo:", error);
+    return { users: [], totalPages: 0, currentPage: 1 };
+  }
 }

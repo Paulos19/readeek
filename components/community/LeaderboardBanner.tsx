@@ -1,64 +1,56 @@
-import { getWeeklyTopReaders } from "@/app/actions/communityActions";
+import { getWeeklyTopReaders, TopReader } from "@/app/actions/communityActions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent } from "@/components/ui/card";
-import { Crown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Crown, Trophy, Sparkles, ChevronsRight } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 
 export async function LeaderboardBanner() {
   const topReaders = await getWeeklyTopReaders();
 
-  if (topReaders.length < 3) {
-    // Não renderiza o banner se não houver pelo menos 3 leitores no pódio
-    return null; 
-  }
-
-  const [first, second, third] = topReaders;
+  const getRankIcon = (index: number) => {
+    if (index === 0) return <Crown className="text-yellow-400" size={24} />;
+    if (index === 1) return <Trophy className="text-gray-400" size={24} />;
+    if (index === 2) return <Sparkles className="text-orange-400" size={24} />;
+    return <span className="text-lg font-bold w-6 text-center">{index + 1}</span>;
+  };
 
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex justify-around items-end h-40">
-          {/* 2º Lugar */}
-          <div className="flex flex-col items-center gap-2 text-center">
-            <Link href={`/profile/${second.id}`}>
-              <Avatar className="h-16 w-16 border-4 border-slate-300">
-                <AvatarImage src={second.image ?? undefined} />
-                <AvatarFallback>{second.name?.charAt(0)}</AvatarFallback>
-              </Avatar>
-            </Link>
-            <div className="font-semibold text-sm">{second.name}</div>
-            <div className="text-xs font-bold text-slate-400">#2</div>
-          </div>
+    <div className="flex flex-col items-center">
+      <div className="text-center mb-6">
+        <h2 className="text-3xl font-bold tracking-tight">Leitores da Semana</h2>
+        <p className="text-muted-foreground mt-1">Veja quem mais se destacou na comunidade nos últimos 7 dias.</p>
+      </div>
 
-          {/* 1º Lugar */}
-          <div className="flex flex-col items-center gap-2 text-center">
-            <Link href={`/profile/${first.id}`}>
-              <div className="relative">
-                <Crown className="absolute -top-5 left-1/2 -translate-x-1/2 h-8 w-8 text-amber-400" />
-                <Avatar className="h-24 w-24 border-4 border-amber-400">
-                  <AvatarImage src={first.image ?? undefined} />
-                  <AvatarFallback className="text-3xl">{first.name?.charAt(0)}</AvatarFallback>
+      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-4">
+        {topReaders.length > 0 ? (
+          topReaders.slice(0, 3).map((reader, index) => (
+            <Link href={`/profile/${reader.id}`} key={reader.id} className="block group">
+              <div className="flex flex-col items-center p-4 border rounded-lg bg-background hover:bg-accent transition-colors">
+                {getRankIcon(index)}
+                <Avatar className="w-20 h-20 mt-4 mb-2 border-2 border-transparent group-hover:border-primary">
+                  <AvatarImage src={reader.image ?? undefined} />
+                  <AvatarFallback>{reader.name?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
+                <p className="font-bold text-lg group-hover:underline">{reader.name}</p>
+                <p className="text-sm text-secondary font-semibold">{reader.score} Pontos</p>
               </div>
             </Link>
-            <div className="font-semibold">{first.name}</div>
-            <div className="text-sm font-bold text-amber-500">#1</div>
-          </div>
+          ))
+        ) : (
+          <p className="md:col-span-3 text-center text-muted-foreground py-8">
+            Ainda não há dados suficientes para formar o ranking desta semana. Participe!
+          </p>
+        )}
+      </div>
 
-          {/* 3º Lugar */}
-          <div className="flex flex-col items-center gap-2 text-center">
-            <Link href={`/profile/${third.id}`}>
-              <Avatar className="h-16 w-16 border-4 border-amber-800">
-                <AvatarImage src={third.image ?? undefined} />
-                <AvatarFallback>{third.name?.charAt(0)}</AvatarFallback>
-              </Avatar>
-            </Link>
-            <div className="font-semibold text-sm">{third.name}</div>
-            <div className="text-xs font-bold text-amber-900">#3</div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="mt-8">
+        <Button asChild size="lg">
+          <Link href="/ranking">
+            Ver Ranking Completo
+            <ChevronsRight className="ml-2 h-5 w-5" />
+          </Link>
+        </Button>
+      </div>
+    </div>
   );
 }

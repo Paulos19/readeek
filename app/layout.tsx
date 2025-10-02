@@ -8,8 +8,8 @@ import { ThemeProvider } from "next-themes";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Next Reader",
-  description: "Seu leitor de EPUBs na nuvem",
+  title: "Readeek",
+  description: "Sua plataforma de leitura social",
 };
 
 export default function RootLayout({
