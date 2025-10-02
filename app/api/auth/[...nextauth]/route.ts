@@ -5,7 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
-import { User, UserRole } from "@prisma/client"; // Importe o UserRole
+import { User, UserRole } from "@prisma/client";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -20,24 +20,19 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
-
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
-
         if (!user || !user.password) {
           return null;
         }
-
         const isPasswordCorrect = await bcrypt.compare(
           credentials.password,
           user.password
         );
-
         if (!isPasswordCorrect) {
           return null;
         }
-
         return user;
       },
     }),
@@ -46,20 +41,29 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    // 1. O callback JWT agora recebe um novo parâmetro 'trigger' e 'session'
+    async jwt({ token, user, trigger, session }) {
+      // No login inicial, o objeto 'user' existe.
       if (user) {
         token.id = user.id;
         token.role = user.role;
         token.credits = user.credits;
       }
+
+      // *** INÍCIO DA CORREÇÃO PRINCIPAL ***
+      // Se a sessão foi atualizada (pela função update() no cliente),
+      // o 'trigger' será "update" e os novos dados estarão em 'session'.
+      if (trigger === "update" && session) {
+        token = { ...token, ...session };
+      }
+      // *** FIM DA CORREÇÃO PRINCIPAL ***
+
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.id;
-        // Adiciona um valor padrão caso o role não esteja no token
-        session.user.role = token.role ?? UserRole.USER; 
-        // Adiciona um valor padrão (0) caso os créditos não estejam no token
+        session.user.role = token.role ?? UserRole.USER;
         session.user.credits = token.credits ?? 0;
       }
       return session;
