@@ -2,11 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Book, Bookmark, Settings, Store } from "lucide-react";
+import { 
+  Bookmark, 
+  Settings, 
+  Store, 
+  LayoutGrid, // Ícone para o novo Dashboard
+  Library     // Ícone para a Biblioteca
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// ATUALIZAÇÃO: A lista de links agora reflete a nova estrutura do Dashboard.
 const navLinks = [
-  { href: "/dashboard", label: "Biblioteca", icon: Book },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
+  { href: "/dashboard/library", label: "Biblioteca", icon: Library },
   { href: "/dashboard/highlights", label: "Trechos", icon: Bookmark },
   { href: "/shop", label: "Loja", icon: Store },
   { href: "/dashboard/settings", label: "Configurações", icon: Settings },
@@ -25,7 +33,13 @@ export function Sidebar() {
         </div>
         <nav className="flex flex-col gap-1 p-4 pt-0">
           {navLinks.map((link) => {
-            const isActive = pathname === link.href;
+            // ATUALIZAÇÃO: Lógica para destacar o link ativo.
+            // O link do Dashboard (/) será ativo apenas na sua página exata.
+            // Outros links (ex: /library) serão ativos se o URL começar com o href deles.
+            const isActive = link.href === "/dashboard"
+              ? pathname === link.href
+              : pathname.startsWith(link.href);
+
             return (
               <Link
                 key={link.href}
