@@ -2,19 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { notFound } from "next/navigation";
-import dynamic from "next/dynamic";
-import { Loader2 } from "lucide-react";
-
-// Importa o EpubViewer de forma dinâmica, desativando a renderização no lado do servidor (SSR)
-const EpubViewer = dynamic(() => import("./_components/EpubViewer").then((mod) => mod.EpubViewer), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-screen w-full flex-col items-center justify-center gap-4">
-      <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      <p className="text-lg text-muted-foreground">A carregar o leitor...</p>
-    </div>
-  ),
-});
+import ReaderLoader from "./_components/ReaderLoader"; // Importa o nosso novo componente de cliente
 
 interface ReadPageProps {
   params: {
@@ -33,5 +21,13 @@ export default async function ReadPage({ params }: ReadPageProps) {
     return notFound();
   }
 
-  return <EpubViewer url={book.filePath} title={book.title} bookId={book.id} />;
+  // A página do servidor agora renderiza o ReaderLoader,
+  // passando os dados do livro como props.
+  return (
+    <ReaderLoader
+      url={book.filePath}
+      title={book.title}
+      bookId={book.id}
+    />
+  );
 }
