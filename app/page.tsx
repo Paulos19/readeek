@@ -1,6 +1,5 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "./api/auth/[...nextauth]/route";
-import Header from "@/components/layout/Header";
 import { PostCard } from "@/components/posts/PostCard";
 import { CreatePostForm } from "@/components/posts/CreatePostForm";
 import { prisma } from "@/lib/prisma";
@@ -8,6 +7,9 @@ import { PostType, User } from "@prisma/client";
 import { PostFilters } from "@/components/posts/PostFilters";
 import { LeaderboardBanner } from "@/components/community/LeaderboardBanner";
 import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
+
+// 1. Importe o NOVO HeaderClient
+import HeaderClient from "@/components/layout/HeaderClient";
 
 interface HomePageProps {
   searchParams: {
@@ -55,7 +57,8 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   return (
     <div>
-      <Header />
+      {/* 2. Use o novo HeaderClient aqui */}
+      <HeaderClient />
       
       <section className="w-full bg-card border-b py-8 md:py-12">
         <div className="container mx-auto">
@@ -71,7 +74,7 @@ export default async function Home({ searchParams }: HomePageProps) {
             <PostFilters />
 
             {posts.length > 0 ? (
-              posts.map(post => <PostCard key={post.id} post={post} currentUser={currentUser} />)
+              posts.map(post => <PostCard key={post.id} post={post as any} currentUser={currentUser} />)
             ) : (
               <div className="text-center py-20 border-2 border-dashed rounded-lg">
                 <h2 className="text-xl font-medium">Nenhuma publicação encontrada.</h2>
