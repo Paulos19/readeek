@@ -9,10 +9,10 @@ import { PostFilters } from "@/components/posts/PostFilters";
 import { LeaderboardBanner } from "@/components/community/LeaderboardBanner";
 import { getRecentSharableBooks } from "./actions/bookActions";
 import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
+import LatestCommunitiesList from "@/components/community/LatestCommunitiesList";
 
-// Importações Finais e Corretas:
-import { RecentBooksBanner } from "@/components/community/RecentBooksBanner";
-import LatestCommunitiesList from "@/components/community/LatestCommunitiesList"; // O componente correto para a lista
+// 1. Importe o NOVO componente de invólucro
+import RecentBooksBannerClient from "@/components/community/RecentBooksBannerClient";
 
 interface HomePageProps {
   searchParams: {
@@ -26,46 +26,22 @@ export default async function Home({ searchParams }: HomePageProps) {
   
   const postTypeFilter = searchParams.type;
 
-  // 1. Buscamos TODOS os dados aqui, no Server Component
-  const posts = await prisma.post.findMany({
-    where: {
-      type: postTypeFilter && postTypeFilter !== 'ALL' 
-        ? (postTypeFilter as PostType) 
-        : undefined,
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      user: true,
-      book: true,
-      reactions: true,
-      comments: {
-        orderBy: { createdAt: 'asc' },
-        include: { 
-          user: true,
-          replies: {
-            orderBy: { createdAt: 'asc' },
-            include: { user: true }
-          }
-        }
+  // Busca de dados no servidor (permanece igual)
+  const [posts, userBooks, recentBooks, latestCommunities] = await Promise.all([
+    prisma.post.findMany({
+      where: {
+        type: postTypeFilter && postTypeFilter !== 'ALL' 
+          ? (postTypeFilter as PostType) 
+          : undefined,
       },
-      _count: {
-        select: { comments: true, reactions: true }
-      }
-    },
-    take: 20,
-  });
-
-  const userBooks = currentUser
-    ? await prisma.book.findMany({ where: { userId: currentUser.id }, orderBy: { title: 'asc' } })
-    : [];
-  
-  const recentBooks = await getRecentSharableBooks();
-  
-  // Adicionamos a busca de dados para as comunidades aqui
-  const latestCommunities = await prisma.community.findMany({
-    take: 5,
-    orderBy: { createdAt: 'desc' },
-  });
+      orderBy: { createdAt: 'desc' },
+      include: { user: true, book: true, reactions: true, comments: { include: { user: true, replies: { include: { user: true }, orderBy: { createdAt: 'asc' }}}, orderBy: { createdAt: 'asc' }}, _count: { select: { comments: true, reactions: true }}},
+      take: 20,
+    }),
+    currentUser ? prisma.book.findMany({ where: { userId: currentUser.id }, orderBy: { title: 'asc' } }) : [],
+    getRecentSharableBooks(),
+    prisma.community.findMany({ take: 5, orderBy: { createdAt: 'desc' } })
+  ]);
 
   return (
     <div>
@@ -81,7 +57,10 @@ export default async function Home({ searchParams }: HomePageProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           <div className="lg:col-span-2 flex flex-col gap-6">
-            <RecentBooksBanner books={recentBooks} currentUser={currentUser} />
+            
+            {/* 2. Use o novo componente cliente aqui */}
+            <RecentBooksBannerClient books={recentBooks} currentUser={currentUser} />
+
             {currentUser && <CreatePostForm user={currentUser} books={userBooks} />}
             <PostFilters />
             {posts.length > 0 ? (
@@ -97,7 +76,6 @@ export default async function Home({ searchParams }: HomePageProps) {
           <aside className="hidden lg:block sticky top-20">
             <div className="space-y-6">
               <SuggestedUsersCard />
-              {/* 2. Passamos os dados das comunidades como props para o componente cliente */}
               <LatestCommunitiesList communities={latestCommunities} />
             </div>
           </aside>

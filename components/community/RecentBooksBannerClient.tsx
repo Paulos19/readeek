@@ -1,37 +1,30 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import type { Book, User } from "@prisma/client"; // Importa os tipos base
+import type { Prisma, User } from "@prisma/client";
 
-// A importação dinâmica com ssr: false vive dentro deste Client Component.
-// Foi corrigida para carregar o 'named export' do módulo.
+// Tipagem para as props que o componente vai receber
+type BookWithUser = Prisma.BookGetPayload<{
+  include: { user: { select: { id: true, name: true } } };
+}>;
+
+interface RecentBooksBannerClientProps {
+  books: BookWithUser[];
+  currentUser?: User;
+}
+
+// Carrega o componente original dinamicamente, desativando a renderização no servidor (SSR)
 const RecentBooksBanner = dynamic(
   () => import('./RecentBooksBanner').then((mod) => mod.RecentBooksBanner),
   {
-    ssr: false,
-    loading: () => <div className="h-[250px] w-full animate-pulse rounded-lg bg-muted"></div>,
+    ssr: false, // Esta é a instrução crucial
+    // Um placeholder de carregamento para uma melhor experiência do utilizador
+    loading: () => <div className="h-[270px] w-full animate-pulse rounded-lg bg-card border"></div>,
   }
 );
 
-// 1. Define um tipo explícito para o objeto de livro que vem do servidor.
-//    Este tipo corresponde exatamente aos campos que selecionou na sua `bookAction`.
-type BookWithSimpleUser = Book & {
-  user: {
-    id: string;
-    name: string | null;
-    image: string | null;
-  };
-};
-
-// 2. A interface de propriedades é atualizada para usar o novo tipo.
-interface RecentBooksBannerClientProps {
-  books: BookWithSimpleUser[];
-  currentUser: User | undefined;
-}
-
-// Este é o componente "invólucro" que você irá usar na sua página.
-// Ele recebe as propriedades do Server Component e passa-as para o componente
-// que é carregado dinamicamente no cliente.
+// Este é o componente que você irá usar na sua página.
+// Ele apenas recebe as props e passa-as para o componente carregado dinamicamente.
 export default function RecentBooksBannerClient({ books, currentUser }: RecentBooksBannerClientProps) {
   return <RecentBooksBanner books={books} currentUser={currentUser} />;
 }
