@@ -8,7 +8,7 @@ import { PostFilters } from "@/components/posts/PostFilters";
 import { LeaderboardBanner } from "@/components/community/LeaderboardBanner";
 import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
 
-// 1. Importe o NOVO HeaderClient
+// 1. Importe o NOVO HeaderClient em vez do Header original
 import HeaderClient from "@/components/layout/HeaderClient";
 
 interface HomePageProps {
@@ -57,7 +57,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   return (
     <div>
-      {/* 2. Use o novo HeaderClient aqui */}
+      {/* 2. Use o novo HeaderClient aqui. Ele vai garantir que o Header só renderize no navegador. */}
       <HeaderClient />
       
       <section className="w-full bg-card border-b py-8 md:py-12">
