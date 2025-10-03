@@ -2,9 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-
-// 1. Importe apenas o novo componente cliente das abas
-import CommunityTabsClient from "./_components/CommunityTabsClient";
+import CommunityTabsClient from "./_components/CommunityTabsClient"; // Importe apenas o novo componente
 
 export default async function CommunityPage({ params }: { params: { communityId: string } }) {
   const session = await getServerSession(authOptions);
@@ -14,39 +12,21 @@ export default async function CommunityPage({ params }: { params: { communityId:
   const community = await prisma.community.findUnique({
     where: { id: params.communityId },
     include: {
-      files: {
-        orderBy: { createdAt: "desc" },
-        include: { uploader: { select: { name: true } } },
-      },
+      files: { orderBy: { createdAt: "desc" }, include: { uploader: { select: { name: true } } } },
       posts: {
         orderBy: { createdAt: 'desc' },
         include: {
-          author: { 
-            select: { 
-              id: true, name: true, image: true,
-              communityMemberships: { where: { communityId: params.communityId } }
-            } 
-          },
+          author: { select: { id: true, name: true, image: true, communityMemberships: { where: { communityId: params.communityId } } } },
           _count: { select: { reactions: true, comments: true } },
           reactions: { where: { userId: userId ?? undefined } },
-          comments: {
-            orderBy: { createdAt: 'asc' },
-            include: {
-              author: { select: { id: true, name: true, image: true } }
-            }
-          }
+          comments: { orderBy: { createdAt: 'asc' }, include: { author: { select: { id: true, name: true, image: true } } } }
         }
       },
-      members: {
-        include: { user: { select: { id: true, name: true, image: true } } },
-        orderBy: { createdAt: 'asc' }
-      }
+      members: { include: { user: { select: { id: true, name: true, image: true } } }, orderBy: { createdAt: 'asc' } }
     },
   });
 
-  if (!community) {
-    notFound();
-  }
+  if (!community) notFound();
 
   // A lógica de permissões permanece igual
   const currentUserMembership = community.members.find(m => m.userId === userId);
@@ -60,10 +40,10 @@ export default async function CommunityPage({ params }: { params: { communityId:
         <h1 className="text-4xl font-bold">{community.name}</h1>
         <p className="text-muted-foreground mt-2 max-w-2xl">{community.description}</p>
       </div>
-
-      {/* 2. Renderize o componente cliente, passando todos os dados necessários como props */}
+      
+      {/* Renderize o componente cliente, passando todos os dados necessários */}
       <CommunityTabsClient 
-        community={community as any} // 'as any' para simplificar, já que a tipagem está no cliente
+        community={community as any} 
         userId={userId} 
         canManage={canManage} 
         isOwner={isOwner} 
