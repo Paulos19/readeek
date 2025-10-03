@@ -73,28 +73,22 @@ export async function updateBookProgress({ bookId, progress, currentLocation }: 
 }
 
 export async function getRecentSharableBooks() {
-  try {
-    return await prisma.book.findMany({
-      where: { 
-        sharable: true
-      },
-      orderBy: { 
-        createdAt: 'desc'
-      },
-      take: 10,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-          },
+  const books = await prisma.book.findMany({
+    where: { sharable: true },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+    // Alterado de 'include' para 'select' no utilizador
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          image: true,
         },
       },
-    });
-  } catch (error) {
-    console.error("Falha ao buscar livros recentes:", error);
-    return [];
-  }
+    },
+  });
+  return books;
 }
 
 export async function getCurrentlyReadingBook() {

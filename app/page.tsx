@@ -5,12 +5,14 @@ import { PostCard } from "@/components/posts/PostCard";
 import { CreatePostForm } from "@/components/posts/CreatePostForm";
 import { prisma } from "@/lib/prisma";
 import { PostType, User } from "@prisma/client";
-import { RecentBooksBanner } from "@/components/community/RecentBooksBanner";
 import { PostFilters } from "@/components/posts/PostFilters";
 import { LeaderboardBanner } from "@/components/community/LeaderboardBanner";
 import { getRecentSharableBooks } from "./actions/bookActions";
 import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
 import LatestCommunitiesCard from "@/components/community/LatestCommunitiesCard";
+
+// Passo 1: Importar o novo componente cliente
+import RecentBooksBannerClient from "@/components/community/RecentBooksBannerClient";
 
 interface HomePageProps {
   searchParams: {
@@ -24,6 +26,7 @@ export default async function Home({ searchParams }: HomePageProps) {
   
   const postTypeFilter = searchParams.type;
 
+  // Busca os dados no servidor, como deve ser
   const posts = await prisma.post.findMany({
     where: {
       type: postTypeFilter && postTypeFilter !== 'ALL' 
@@ -60,7 +63,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   return (
     <div>
-
+      <Header />
       
       <section className="w-full bg-card border-b py-8 md:py-12">
         <div className="container mx-auto">
@@ -72,7 +75,10 @@ export default async function Home({ searchParams }: HomePageProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           <div className="lg:col-span-2 flex flex-col gap-6">
-            <RecentBooksBanner books={recentBooks} currentUser={currentUser} />
+            
+            {/* Passo 2: Usar o componente cliente para renderizar o banner */}
+            <RecentBooksBannerClient books={recentBooks} currentUser={currentUser} />
+
             {currentUser && <CreatePostForm user={currentUser} books={userBooks} />}
             <PostFilters />
 
@@ -89,7 +95,6 @@ export default async function Home({ searchParams }: HomePageProps) {
           </div>
 
           <aside className="hidden lg:block sticky top-20">
-            {/* Agrupador para garantir espaçamento consistente entre os cards */}
             <div className="space-y-6">
               <SuggestedUsersCard />
               <LatestCommunitiesCard />
