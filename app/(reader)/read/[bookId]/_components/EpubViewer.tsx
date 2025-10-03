@@ -7,7 +7,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import { updateBookProgress } from "@/app/actions/bookActions";
 import { createHighlight, getHighlightsForBook, deleteHighlight } from "@/app/actions/highlightActions";
 import { toast } from "sonner";
-import { Highlight } from "@prisma/client";
+import type { Highlight } from "@prisma/client";
 import { cn } from "@/lib/utils";
 
 // UI Components
