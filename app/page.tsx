@@ -7,7 +7,6 @@ import { prisma } from "@/lib/prisma";
 import { PostType, User } from "@prisma/client";
 import { PostFilters } from "@/components/posts/PostFilters";
 import { LeaderboardBanner } from "@/components/community/LeaderboardBanner";
-import { getRecentSharableBooks } from "./actions/bookActions";
 import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
 
 interface HomePageProps {
@@ -53,8 +52,6 @@ export default async function Home({ searchParams }: HomePageProps) {
   const userBooks = currentUser
     ? await prisma.book.findMany({ where: { userId: currentUser.id }, orderBy: { title: 'asc' } })
     : [];
-  
-  const recentBooks = await getRecentSharableBooks();
 
   return (
     <div>
