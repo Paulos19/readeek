@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "./api/auth/[...nextauth]/route";
+import Header from "@/components/layout/Header";
 import { PostCard } from "@/components/posts/PostCard";
 import { CreatePostForm } from "@/components/posts/CreatePostForm";
 import { prisma } from "@/lib/prisma";
@@ -8,8 +9,9 @@ import { PostFilters } from "@/components/posts/PostFilters";
 import { LeaderboardBanner } from "@/components/community/LeaderboardBanner";
 import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
 
-// 1. Importe o NOVO HeaderClient em vez do Header original
-import HeaderClient from "@/components/layout/HeaderClient";
+// 1. Importe o componente da lista de comunidades
+import LatestCommunitiesList from "@/components/community/LatestCommunitiesList";
+import { getLatestCommunities } from "./actions/communityActions";
 
 interface HomePageProps {
   searchParams: {
@@ -23,42 +25,43 @@ export default async function Home({ searchParams }: HomePageProps) {
   
   const postTypeFilter = searchParams.type;
 
-  const posts = await prisma.post.findMany({
-    where: {
-      type: postTypeFilter && postTypeFilter !== 'ALL' 
-        ? (postTypeFilter as PostType) 
-        : undefined,
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      user: true,
-      book: true,
-      reactions: true,
-      comments: {
-        orderBy: { createdAt: 'asc' },
-        include: { 
-          user: true,
-          replies: {
-            orderBy: { createdAt: 'asc' },
-            include: { user: true }
+  // Busca de dados em paralelo para melhor performance
+  const [posts, userBooks, latestCommunities] = await Promise.all([
+    prisma.post.findMany({
+      where: {
+        type: postTypeFilter && postTypeFilter !== 'ALL' 
+          ? (postTypeFilter as PostType) 
+          : undefined,
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: true,
+        book: true,
+        reactions: true,
+        comments: {
+          orderBy: { createdAt: 'asc' },
+          include: { 
+            user: true,
+            replies: {
+              orderBy: { createdAt: 'asc' },
+              include: { user: true }
+            }
           }
+        },
+        _count: {
+          select: { comments: true, reactions: true }
         }
       },
-      _count: {
-        select: { comments: true, reactions: true }
-      }
-    },
-    take: 20,
-  });
-
-  const userBooks = currentUser
-    ? await prisma.book.findMany({ where: { userId: currentUser.id }, orderBy: { title: 'asc' } })
-    : [];
+      take: 20,
+    }),
+    currentUser ? prisma.book.findMany({ where: { userId: currentUser.id }, orderBy: { title: 'asc' } }) : [],
+    // 2. Chame a função para buscar as comunidades
+    getLatestCommunities(4) // Limite de 4 para a barra lateral
+  ]);
 
   return (
     <div>
-      {/* 2. Use o novo HeaderClient aqui. Ele vai garantir que o Header só renderize no navegador. */}
-      <HeaderClient />
+      <Header />
       
       <section className="w-full bg-card border-b py-8 md:py-12">
         <div className="container mx-auto">
@@ -86,7 +89,11 @@ export default async function Home({ searchParams }: HomePageProps) {
           </div>
 
           <aside className="hidden lg:block sticky top-20">
-            <SuggestedUsersCard />
+            <div className="space-y-6">
+              <SuggestedUsersCard />
+              {/* 3. Renderize o componente e passe os dados */}
+              <LatestCommunitiesList communities={latestCommunities} />
+            </div>
           </aside>
 
         </div>
