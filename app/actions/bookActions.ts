@@ -131,3 +131,85 @@ export async function getCurrentlyReadingBook() {
     return null;
   }
 }
+
+// ========= FUNÇÕES ADICIONADAS ABAIXO =========
+
+/**
+ * Guarda a localização atual da leitura de um livro.
+ */
+export async function saveReadingProgress(bookId: string, currentLocation: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { error: "Não autorizado." };
+  }
+
+  try {
+    await prisma.book.update({
+      where: {
+        id: bookId,
+        userId: session.user.id,
+      },
+      data: {
+        currentLocation: currentLocation,
+        updatedAt: new Date(),
+      },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Erro ao guardar o progresso da leitura:", error);
+    return { error: "Não foi possível guardar o seu progresso." };
+  }
+}
+
+/**
+ * Cria um novo destaque (highlight) para um livro.
+ */
+export async function createHighlight(bookId: string, cfiRange: string, text: string, color: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("Não autorizado.");
+  }
+
+  try {
+    const highlight = await prisma.highlight.create({
+      data: {
+        userId: session.user.id,
+        bookId,
+        cfiRange,
+        text,
+        color,
+      },
+    });
+    revalidatePath("/(app)/dashboard/highlights");
+    return highlight;
+  } catch (error) {
+    console.error("Erro ao criar o destaque:", error);
+    throw new Error("Não foi possível guardar o destaque.");
+  }
+}
+
+/**
+ * Obtém todos os destaques de um livro para o utilizador atual.
+ */
+export async function getBookHighlights(bookId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return [];
+  }
+
+  try {
+    const highlights = await prisma.highlight.findMany({
+      where: {
+        userId: session.user.id,
+        bookId: bookId,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+    return highlights;
+  } catch (error) {
+    console.error("Erro ao buscar os destaques:", error);
+    return [];
+  }
+}
