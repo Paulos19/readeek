@@ -37,23 +37,29 @@ enum UserRole {
   ADMIN
 }
 
+// NOVO ENUM PARA CARGOS NA COMUNIDADE
+enum CommunityRole {
+  OWNER
+  HONORARY_MEMBER
+  MEMBER
+}
+
 // -- MODELS --
 
 model User {
-  id                String            @id @default(cuid())
-  name              String?
-  email             String            @unique
-  password          String
-  emailVerified     DateTime?
-  image             String?
-  role              UserRole          @default(USER)
-  about             String?           @db.Text
-  profileVisibility ProfileVisibility @default(PUBLIC)
-  credits           Int               @default(50)
-
-  // NOVO CAMPO: Armazena os IDs das insígnias que o utilizador escolheu exibir
+  id                   String            @id @default(cuid())
+  name                 String?
+  email                String            @unique
+  password             String
+  emailVerified        DateTime?
+  image                String?
+  role                 UserRole          @default(USER)
+  about                String?           @db.Text
+  profileVisibility    ProfileVisibility @default(PUBLIC)
+  credits              Int               @default(50)
   displayedInsigniaIds String[]
 
+  // Relações existentes
   accounts         Account[]
   sessions         Session[]
   books            Book[]
@@ -61,18 +67,26 @@ model User {
   comments         Comment[]
   reactions        Reaction[]
   Highlight        Highlight[]
-  sentRequests     BookRequest[]      @relation("SentRequests")
-  receivedRequests BookRequest[]      @relation("ReceivedRequests")
+  sentRequests     BookRequest[]     @relation("SentRequests")
+  receivedRequests BookRequest[]     @relation("ReceivedRequests")
   insignias        InsigniasOnUsers[]
-  following        Follows[]          @relation("follower")
-  followers        Follows[]          @relation("following")
+  following        Follows[]         @relation("follower")
+  followers        Follows[]         @relation("following")
+
+  // Relações da Comunidade
+  ownedCommunities       Community[]           @relation("OwnedCommunities")
+  communityMemberships   CommunityMember[]     @relation("CommunityMemberships")
+  uploadedCommunityFiles CommunityFile[]
+  communityPosts         CommunityPost[]       @relation("CommunityPosts")
+  communityComments      CommunityComment[]
+  communityReactions     CommunityReaction[]
+  communityPostReports   CommunityPostReport[]
+  bannedFrom             BannedFromCommunity[]
 }
 
-// Modelo para a relação de seguidores (este modelo estava em falta)
 model Follows {
-  followerId String
-  follower   User   @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
-
+  followerId  String
+  follower    User   @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
   followingId String
   following   User   @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
 
@@ -80,23 +94,21 @@ model Follows {
 }
 
 model Book {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   title           String
   author          String?
   coverUrl        String?
   filePath        String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  progress        Int      @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  progress        Int           @default(0)
   currentLocation String?
-  sharable        Boolean  @default(false)
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  posts     Post[]
-  Highlight Highlight[]
-  requests  BookRequest[] @relation("RequestedBook")
+  sharable        Boolean       @default(false)
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts           Post[]
+  Highlight       Highlight[]
+  requests        BookRequest[] @relation("RequestedBook")
 }
 
 model BookRequest {
@@ -119,7 +131,7 @@ model Insignia {
   description String
   imageUrl    String
   type        InsigniaType       @default(FREE)
-  price       Int? // <-- ADICIONE ESTA LINHA (opcional para itens grátis)
+  price       Int?
   users       InsigniasOnUsers[]
 }
 
@@ -134,16 +146,16 @@ model InsigniasOnUsers {
 }
 
 model Post {
-  id             String     @id @default(cuid())
-  content        String     @db.Text
-  type           PostType   @default(POST)
+  id             String    @id @default(cuid())
+  content        String    @db.Text
+  type           PostType  @default(POST)
   progressAtPost Int?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   userId         String
-  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookId         String
-  book           Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  book           Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
   comments       Comment[]
   reactions      Reaction[]
 }
@@ -216,4 +228,110 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// -- COMMUNITY MODELS --
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String
+  visibility  String
+  password    String?
+  ownerId     String
+  owner       User     @relation("OwnedCommunities", fields: [ownerId], references: [id], onDelete: Restrict)
+  members     CommunityMember[]
+  files       CommunityFile[]
+  posts       CommunityPost[]
+  bannedUsers BannedFromCommunity[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CommunityMember {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation("CommunityMemberships", fields: [userId], references: [id], onDelete: Cascade)
+  communityId String
+  community   Community     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  role        CommunityRole @default(MEMBER)
+  createdAt   DateTime      @default(now())
+
+  @@unique([userId, communityId])
+}
+
+model BannedFromCommunity {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  bannedAt    DateTime  @default(now())
+
+  @@unique([userId, communityId])
+}
+
+model CommunityFile {
+  id          String    @id @default(cuid())
+  title       String
+  author      String?
+  coverUrl    String?
+  fileUrl     String
+  fileType    String
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  uploaderId  String
+  uploader    User      @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+}
+
+model CommunityPost {
+  id          String                @id @default(cuid())
+  content     String
+  authorId    String
+  author      User                  @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
+  communityId String
+  community   Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  comments    CommunityComment[]
+  reactions   CommunityReaction[]
+  reports     CommunityPostReport[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+}
+
+model CommunityComment {
+  id        String            @id @default(cuid())
+  content   String
+  authorId  String
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId    String
+  post      CommunityPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime          @default(now())
+  parentId  String?
+  parent    CommunityComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies   CommunityComment[] @relation("CommentReplies")
+}
+
+model CommunityReaction {
+  id        String        @id @default(cuid())
+  emoji     String
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([userId, postId])
+}
+
+model CommunityPostReport {
+  id         String        @id @default(cuid())
+  postId     String
+  post       CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reporterId String
+  reporter   User          @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  reason     String?
+  resolved   Boolean       @default(false)
+  createdAt  DateTime      @default(now())
 }
