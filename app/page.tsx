@@ -10,6 +10,7 @@ import { PostFilters } from "@/components/posts/PostFilters";
 import { LeaderboardBanner } from "@/components/community/LeaderboardBanner";
 import { getRecentSharableBooks } from "./actions/bookActions";
 import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
+import LatestCommunitiesCard from "@/components/community/LatestCommunitiesCard";
 
 interface HomePageProps {
   searchParams: {
@@ -76,7 +77,7 @@ export default async function Home({ searchParams }: HomePageProps) {
             <PostFilters />
 
             {posts.length > 0 ? (
-              posts.map(post => <PostCard key={post.id} post={post} currentUser={currentUser} />)
+              posts.map(post => <PostCard key={post.id} post={post as any} currentUser={currentUser} />)
             ) : (
               <div className="text-center py-20 border-2 border-dashed rounded-lg">
                 <h2 className="text-xl font-medium">Nenhuma publicação encontrada.</h2>
@@ -88,7 +89,11 @@ export default async function Home({ searchParams }: HomePageProps) {
           </div>
 
           <aside className="hidden lg:block sticky top-20">
-            <SuggestedUsersCard />
+            {/* Agrupador para garantir espaçamento consistente entre os cards */}
+            <div className="space-y-6">
+              <SuggestedUsersCard />
+              <LatestCommunitiesCard />
+            </div>
           </aside>
 
         </div>

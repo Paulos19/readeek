@@ -513,3 +513,26 @@ export async function addCommunityComment(formData: FormData) {
     return { error: "Não foi possível adicionar o comentário." };
   }
 }
+
+export async function getLatestCommunities(limit: number = 5) {
+  try {
+    const communities = await prisma.community.findMany({
+      where: { visibility: 'public' }, // Mostra apenas as públicas na homepage
+      take: limit,
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        name: true,
+        _count: {
+          select: { members: true },
+        },
+      },
+    });
+    return communities;
+  } catch (error) {
+    console.error("Falha ao buscar as últimas comunidades:", error);
+    return [];
+  }
+}

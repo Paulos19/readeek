@@ -13,8 +13,10 @@ export default function AppLayout({
       <div className="flex flex-col md:pl-64">
         {/* Header para desktop e mobile */}
         <Header />
-        {/* Conteúdo principal da página */}
-        <main className="flex-1 p-4 md:p-6">
+        
+        {/* CONTEÚDO PRINCIPAL DA PÁGINA (COM A CORREÇÃO) */}
+        {/* Adicionado 'pt-20 md:pt-6' para dar espaço ao cabeçalho móvel */}
+        <main className="flex-1 p-4 md:p-6 pt-20 md:pt-6">
           {children}
         </main>
       </div>

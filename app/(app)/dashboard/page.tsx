@@ -69,6 +69,7 @@ export default async function DashboardHomePage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <NavCard title="Minha Biblioteca" href="/dashboard/library" icon={Library} />
             <NavCard title="Meus Trechos" href="/dashboard/highlights" icon={Bookmark} />
+            <NavCard title="Comunidades" href="/communities" icon={LayoutGrid} />
             <NavCard title="Configurações" href="/dashboard/settings" icon={Settings} />
         </div>
       </div>
