@@ -60,7 +60,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   return (
     <div>
-      <Header />
+
       
       <section className="w-full bg-card border-b py-8 md:py-12">
         <div className="container mx-auto">
