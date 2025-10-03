@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileUp, Download, Settings } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { uploadCommunityFile } from "@/app/actions/communityActions";
+import { uploadCommunityFile } from "@/app/actions/communityUploadActions";
 
 // Importa os componentes filhos necessários
 import CreatePostForm from "./_components/CreatePostForm";
