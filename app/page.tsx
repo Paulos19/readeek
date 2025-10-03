@@ -9,10 +9,10 @@ import { PostFilters } from "@/components/posts/PostFilters";
 import { LeaderboardBanner } from "@/components/community/LeaderboardBanner";
 import { getRecentSharableBooks } from "./actions/bookActions";
 import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
-import LatestCommunitiesCard from "@/components/community/LatestCommunitiesCard";
 
-// Passo 1: Importar o novo componente cliente
-import RecentBooksBannerClient from "@/components/community/RecentBooksBannerClient";
+// Importações Finais e Corretas:
+import { RecentBooksBanner } from "@/components/community/RecentBooksBanner";
+import LatestCommunitiesList from "@/components/community/LatestCommunitiesList"; // O componente correto para a lista
 
 interface HomePageProps {
   searchParams: {
@@ -26,7 +26,7 @@ export default async function Home({ searchParams }: HomePageProps) {
   
   const postTypeFilter = searchParams.type;
 
-  // Busca os dados no servidor, como deve ser
+  // 1. Buscamos TODOS os dados aqui, no Server Component
   const posts = await prisma.post.findMany({
     where: {
       type: postTypeFilter && postTypeFilter !== 'ALL' 
@@ -60,6 +60,12 @@ export default async function Home({ searchParams }: HomePageProps) {
     : [];
   
   const recentBooks = await getRecentSharableBooks();
+  
+  // Adicionamos a busca de dados para as comunidades aqui
+  const latestCommunities = await prisma.community.findMany({
+    take: 5,
+    orderBy: { createdAt: 'desc' },
+  });
 
   return (
     <div>
@@ -75,21 +81,15 @@ export default async function Home({ searchParams }: HomePageProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           <div className="lg:col-span-2 flex flex-col gap-6">
-            
-            {/* Passo 2: Usar o componente cliente para renderizar o banner */}
-            <RecentBooksBannerClient books={recentBooks} currentUser={currentUser} />
-
+            <RecentBooksBanner books={recentBooks} currentUser={currentUser} />
             {currentUser && <CreatePostForm user={currentUser} books={userBooks} />}
             <PostFilters />
-
             {posts.length > 0 ? (
               posts.map(post => <PostCard key={post.id} post={post as any} currentUser={currentUser} />)
             ) : (
               <div className="text-center py-20 border-2 border-dashed rounded-lg">
                 <h2 className="text-xl font-medium">Nenhuma publicação encontrada.</h2>
-                <p className="text-muted-foreground mt-2">
-                  Tente um filtro diferente ou seja o primeiro a publicar!
-                </p>
+                <p className="text-muted-foreground mt-2">Tente um filtro diferente ou seja o primeiro a publicar!</p>
               </div>
             )}
           </div>
@@ -97,7 +97,8 @@ export default async function Home({ searchParams }: HomePageProps) {
           <aside className="hidden lg:block sticky top-20">
             <div className="space-y-6">
               <SuggestedUsersCard />
-              <LatestCommunitiesCard />
+              {/* 2. Passamos os dados das comunidades como props para o componente cliente */}
+              <LatestCommunitiesList communities={latestCommunities} />
             </div>
           </aside>
 
