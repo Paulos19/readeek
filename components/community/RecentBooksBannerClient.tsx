@@ -17,7 +17,7 @@ interface RecentBooksBannerClientProps {
 const RecentBooksBanner = dynamic(
   () => import('./RecentBooksBanner').then((mod) => mod.RecentBooksBanner),
   {
-    ssr: false, // Esta é a instrução crucial
+    ssr: false, // Esta é a instrução crucial que resolve o erro
     // Um placeholder de carregamento para uma melhor experiência do utilizador
     loading: () => <div className="h-[270px] w-full animate-pulse rounded-lg bg-card border"></div>,
   }
