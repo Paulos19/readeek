@@ -1,4 +1,4 @@
-import HeaderClient from "@/components/layout/HeaderClient";
+import Header from "@/components/layout/Header";
 
 export default function CommunityLayout({
   children,
@@ -7,7 +7,7 @@ export default function CommunityLayout({
 }) {
   return (
     <div className="flex flex-col min-h-screen">
-      <HeaderClient />
+      <Header />
       <main className="flex-grow container mx-auto p-4">{children}</main>
     </div>
   );
