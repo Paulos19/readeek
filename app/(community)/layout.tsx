@@ -1,5 +1,4 @@
-// app/(community)/layout.tsx
-import Header from "@/components/layout/Header";
+import HeaderClient from "@/components/layout/HeaderClient";
 
 export default function CommunityLayout({
   children,
@@ -8,7 +7,7 @@ export default function CommunityLayout({
 }) {
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
+      <HeaderClient />
       <main className="flex-grow container mx-auto p-4">{children}</main>
     </div>
   );
