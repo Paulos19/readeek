@@ -1,8 +1,6 @@
-// app/api/mobile/books/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
-import { UserRole } from "@prisma/client";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
@@ -14,11 +12,12 @@ export async function GET(request: Request) {
   
   try {
     const decoded: any = jwt.verify(token, JWT_SECRET);
-    const userId = decoded.userId || decoded.id; // Suporte a diferentes payloads de JWT
+    // Identificamos quem está fazendo o pedido
+    const currentUserId = decoded.userId || decoded.id; 
 
-    // Busca os livros do usuário
+    // AGORA BUSCAMOS TODOS OS LIVROS (Sem filtro de userId)
+    // Opcional: Você pode querer filtrar apenas livros 'sharable: true' no futuro
     const books = await prisma.book.findMany({
-      where: { userId: userId },
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
@@ -29,9 +28,9 @@ export async function GET(request: Request) {
         filePath: true,
         currentLocation: true,
         downloadsCount: true,
+        description: true,
         
-        description: true, // <--- ADICIONE AQUI
-        
+        // Incluímos explicitamente o dono do livro para o perfil
         user: {
             select: {
                 id: true,
@@ -43,18 +42,28 @@ export async function GET(request: Request) {
       }
     });
 
-    // Flattening (Aplainando) os dados para facilitar no Mobile
-    const formattedBooks = books.map(book => ({
-        ...book,
-        userId: book.user.id,
-        userName: book.user.name,
-        userImage: book.user.image,
-        userRole: book.user.role
-    }));
+    const formattedBooks = books.map(book => {
+        // LÓGICA DE PROTEÇÃO DE PROGRESSO
+        // Se o livro não é meu, eu não devo ver o progresso do dono
+        const isMyBook = book.user.id === currentUserId;
+
+        return {
+            ...book,
+            // Se não for meu, zero o progresso para não confundir o app
+            progress: isMyBook ? book.progress : 0,
+            currentLocation: isMyBook ? book.currentLocation : null,
+            
+            // Flattening para facilitar no mobile
+            userId: book.user.id,
+            userName: book.user.name,
+            userImage: book.user.image,
+            userRole: book.user.role
+        };
+    });
 
     return NextResponse.json(formattedBooks);
   } catch (error) {
-    console.error("Erro API Mobile:", error);
+    console.error("Erro API Books:", error);
     return NextResponse.json({ error: "Invalid Token" }, { status: 401 });
   }
 }
