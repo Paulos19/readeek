@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
+import { parseEpub } from "@/lib/epubParser";
 
 export async function uploadBook(formData: FormData) {
   const session = await getServerSession(authOptions);
@@ -20,20 +21,59 @@ export async function uploadBook(formData: FormData) {
     return { error: "Arquivo inválido. Por favor, envie um arquivo no formato .epub." };
   }
 
-  const filename = file.name.replace(/\s/g, '_');
-
   try {
-    const blob = await put(filename, file, {
+    // 1. Converter File para Buffer para análise
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // 2. Extrair metadados (Título, Autor, Descrição, Capa)
+    let metadata;
+    try {
+      metadata = await parseEpub(buffer);
+    } catch (parseError) {
+      console.warn("Falha ao extrair metadados do EPUB:", parseError);
+      // Fallback seguro caso o EPUB esteja fora do padrão
+      metadata = {
+        title: file.name.replace(/\.epub$/i, '').replace(/_/g, ' '),
+        author: "Autor desconhecido",
+        description: null,
+        coverBuffer: null,
+        coverMimeType: null
+      };
+    }
+
+    // 3. Upload do arquivo do Livro (.epub)
+    // Usamos um nome limpo baseado no título extraído
+    const safeTitle = metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const filename = `books/${Date.now()}-${safeTitle}.epub`;
+    
+    const bookBlob = await put(filename, file, {
       access: 'public',
     });
 
+    // 4. Upload da Capa (apenas se extraída com sucesso)
+    let coverUrl = null;
+    if (metadata.coverBuffer && metadata.coverMimeType) {
+      const ext = metadata.coverMimeType.split('/')[1] || 'jpg';
+      const coverFilename = `covers/${Date.now()}-${safeTitle}.${ext}`;
+      
+      const coverBlob = await put(coverFilename, metadata.coverBuffer, {
+        access: 'public',
+        contentType: metadata.coverMimeType,
+      });
+      coverUrl = coverBlob.url;
+    }
+
+    // 5. Salvar no Banco de Dados
     await prisma.book.create({
       data: {
-        title: file.name.replace(/\.epub$/i, ''),
-        filePath: blob.url,
+        title: metadata.title,
+        author: metadata.author,
+        description: metadata.description, // Salva a sinopse extraída
+        filePath: bookBlob.url,
+        coverUrl: coverUrl, // Salva a URL da capa do Blob
         userId: session.user.id,
-        author: 'Autor desconhecido',
-        coverUrl: null,
+        progress: 0,
       },
     });
 
@@ -41,8 +81,8 @@ export async function uploadBook(formData: FormData) {
     return { success: "Livro enviado com sucesso!" };
 
   } catch (error) {
-    console.error("Falha no upload do livro:", error);
-    return { error: "Ocorreu um erro no servidor ao tentar salvar o livro." };
+    console.error("Falha crítica no upload do livro:", error);
+    return { error: "Ocorreu um erro no servidor ao processar o livro." };
   }
 }
 
