@@ -40,10 +40,13 @@ import {
     Minimize
 } from "lucide-react";
 
+// 1. ATUALIZAÇÃO DA INTERFACE: Adicionados initialLocation e initialHighlights
 interface EpubViewerProps {
     url: string;
-    title: string;
+    title?: string; // Tornado opcional pois o pai não estava passando
     bookId: string;
+    initialLocation?: string;
+    initialHighlights?: Highlight[];
 }
 
 interface Selection {
@@ -58,7 +61,8 @@ const HIGHLIGHT_COLORS = [
     { name: 'Pink', value: 'rgba(255, 192, 203, 0.4)' },
 ];
 
-export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
+// 2. DESESTRUTURAÇÃO DAS PROPS: Definido valor padrão para title e highlights
+export function EpubViewer({ url, title = "Livro", bookId, initialLocation, initialHighlights = [] }: EpubViewerProps) {
     const viewerRef = useRef<HTMLDivElement>(null);
     const renditionRef = useRef<Rendition | null>(null);
     const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -68,9 +72,12 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
     const [fontSize, setFontSize] = useState(18);
     const [progress, setProgress] = useState(0);
     const [currentLocation, setCurrentLocation] = useState(0);
-    const [highlights, setHighlights] = useState<Highlight[]>([]);
-    const [toc, setToc] = useState<NavItem[]>([]); // Estado para o sumário (Table of Contents)
-    const [isFullScreen, setIsFullScreen] = useState(false); // Estado para a tela cheia
+    
+    // 3. ESTADO INICIAL: Usa os highlights passados via prop (SSR) para iniciar o estado
+    const [highlights, setHighlights] = useState<Highlight[]>(initialHighlights);
+    
+    const [toc, setToc] = useState<NavItem[]>([]); 
+    const [isFullScreen, setIsFullScreen] = useState(false); 
 
     const [isHighlighting, setIsHighlighting] = useState(false);
     const [pendingSelection, setPendingSelection] = useState<Selection | null>(null);
@@ -113,7 +120,6 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
         renditionRef.current?.themes.select(theme);
     }, []);
 
-    // NOVA FUNCIONALIDADE: Tela Cheia
     const toggleFullScreen = useCallback(() => {
         const elem = document.documentElement;
         if (!document.fullscreenElement) {
@@ -197,18 +203,24 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
         rendition.themes.register("sepia", { body: { "background-color": "#fbf0d9", "color": "#5b4636" } });
 
         book.ready.then(() => book.locations.generate(1650)).then(async () => {
-            // NOVA FUNCIONALIDADE: Carrega o sumário (TOC)
             setToc(book.navigation.toc);
 
-            const existingHighlights = await getHighlightsForBook(bookId);
-            setHighlights(existingHighlights);
+            // 4. LÓGICA DE HIGHLIGHTS: Usa os props se existirem, senão busca no servidor
+            let currentHighlights = initialHighlights;
+            if (currentHighlights.length === 0) {
+                 // Se não veio do pai (SSR), busca agora
+                 currentHighlights = await getHighlightsForBook(bookId);
+                 setHighlights(currentHighlights);
+            }
 
-            existingHighlights.forEach(hl => {
+            currentHighlights.forEach(hl => {
                 rendition.annotations.add("highlight", hl.cfiRange, {}, undefined, "hl", { "fill": hl.color, "fill-opacity": "0.4" });
             });
 
-            const initialLocation = window.location.hash.substring(1);
-            rendition.display(initialLocation || undefined);
+            // 5. NAVEGAÇÃO INICIAL: Prioriza o prop initialLocation
+            const targetLocation = initialLocation || window.location.hash.substring(1) || undefined;
+            rendition.display(targetLocation);
+            
             setTheme('light');
             setIsLoading(false);
             hideUiAfterDelay();
@@ -242,9 +254,10 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
             document.removeEventListener("keydown", handleKeyPress);
             if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
         };
-    }, [url, bookId]);
+    }, [url, bookId]); // Removido initialLocation/initialHighlights das dependências para evitar re-render loop
 
     return (
+        // ... (O JSX permanece idêntico)
         <div className="relative w-screen h-screen flex flex-col items-center bg-zinc-100 dark:bg-zinc-900 overflow-hidden">
 
             {isLoading && <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}
@@ -293,7 +306,6 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
                                 <SheetHeader>
                                     <SheetTitle>Navegação</SheetTitle>
                                 </SheetHeader>
-                                {/* ALTERAÇÃO: Adicionado Tabs para Sumário e Trechos */}
                                 <Tabs defaultValue="toc" className="mt-4">
                                     <TabsList className="grid w-full grid-cols-2">
                                         <TabsTrigger value="toc">Capítulos</TabsTrigger>
@@ -338,7 +350,6 @@ export function EpubViewer({ url, title, bookId }: EpubViewerProps) {
                                 <DropdownMenuItem onClick={() => setTheme('sepia')}><BookIcon className="mr-2 h-4 w-4" /> Sépia</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                         {/* BOTÃO DE TELA CHEIA ADICIONADO */}
                         <Button variant="ghost" size="icon" onClick={toggleFullScreen}>
                             {isFullScreen ? <Minimize className="h-5 w-5" /> : <Expand className="h-5 w-5" />}
                         </Button>

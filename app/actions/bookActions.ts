@@ -247,3 +247,66 @@ export async function getBookHighlights(bookId: string) {
     return [];
   }
 }
+
+export async function refreshBookMetadata(bookId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Não autorizado." };
+
+  try {
+    // 1. Buscar o livro atual
+    const book = await prisma.book.findUnique({
+      where: { id: bookId, userId: session.user.id },
+    });
+
+    if (!book) return { error: "Livro não encontrado." };
+
+    // Se o livro já tem capa e não é "Autor desconhecido", não precisamos fazer nada
+    if (book.coverUrl && book.author !== "Autor desconhecido") {
+        return { success: false, message: "Metadados já estão atualizados." };
+    }
+
+    // 2. Baixar o arquivo EPUB do Blob Storage para a memória
+    const response = await fetch(book.filePath);
+    if (!response.ok) throw new Error("Falha ao baixar o arquivo do livro.");
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // 3. Extrair novos metadados
+    const metadata = await parseEpub(buffer);
+
+    // 4. Se encontrou uma capa nova, fazer upload
+    let newCoverUrl = book.coverUrl;
+    if (metadata.coverBuffer && metadata.coverMimeType) {
+        const safeTitle = metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const ext = metadata.coverMimeType.split('/')[1] || 'jpg';
+        const coverFilename = `covers/${Date.now()}-${safeTitle}.${ext}`;
+        
+        const coverBlob = await put(coverFilename, metadata.coverBuffer, {
+            access: 'public',
+            contentType: metadata.coverMimeType,
+        });
+        newCoverUrl = coverBlob.url;
+    }
+
+    // 5. Atualizar o Banco de Dados
+    await prisma.book.update({
+        where: { id: bookId },
+        data: {
+            title: metadata.title !== "Sem Título" ? metadata.title : book.title,
+            author: metadata.author !== "Autor Desconhecido" ? metadata.author : book.author,
+            description: metadata.description || book.description,
+            coverUrl: newCoverUrl,
+        }
+    });
+
+    revalidatePath("/(app)/dashboard");
+    revalidatePath(`/read/${bookId}`);
+    
+    return { success: true, message: "Metadados atualizados com sucesso!" };
+
+  } catch (error) {
+    console.error("Erro ao atualizar metadados:", error);
+    return { error: "Falha na atualização automática." };
+  }
+}
