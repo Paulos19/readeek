@@ -1,3 +1,4 @@
+// app/api/mobile/books/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
@@ -5,7 +6,6 @@ import jwt from "jsonwebtoken";
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
 export async function GET(request: Request) {
-  // Validar Token JWT manualmente (middleware simplificado)
   const authHeader = request.headers.get("authorization");
   if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   
@@ -23,7 +23,8 @@ export async function GET(request: Request) {
         author: true,
         coverUrl: true,
         progress: true,
-        filePath: true, // Importante para o download offline depois
+        filePath: true,
+        currentLocation: true, // <--- ADICIONADO: Importante para o sync reverso
       }
     });
 
