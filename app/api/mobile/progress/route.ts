@@ -19,14 +19,32 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
     }
 
+    // Busca o estado atual para comparar
+    const currentBook = await prisma.book.findUnique({
+        where: { id: bookId },
+        select: { progress: true }
+    });
+
+    // LÓGICA DE PROTEÇÃO:
+    // Se o novo progresso for 0 mas o livro já estava avançado (>5%),
+    // assumimos que é um erro de cálculo do mobile e salvamos apenas o CFI (currentLocation),
+    // mantendo o progresso visual antigo para não assustar o usuário.
+    let newProgress = Math.floor(percentage * 100);
+    
+    if (newProgress === 0 && (currentBook?.progress || 0) > 5) {
+        console.log(`[Sync War] Ignorando progresso 0% para livro avançado (${currentBook?.progress}%). Salvando apenas localização.`);
+        newProgress = currentBook?.progress || 0;
+    }
+
     const updatedBook = await prisma.book.update({
       where: { 
         id: bookId,
-        userId: decoded.userId // Garante segurança
+        userId: decoded.userId 
       },
       data: {
-        currentLocation: cfi, // <--- CORRIGIDO: Nome exato do seu Schema
-        progress: Math.floor(percentage * 100) // Converte 0.5 para 50 (Int)
+        currentLocation: cfi, 
+        progress: newProgress,
+        updatedAt: new Date() // Força atualização do timestamp para o sync reverso pegar
       },
     });
 
