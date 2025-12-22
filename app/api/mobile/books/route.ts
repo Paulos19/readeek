@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { UserRole } from "@prisma/client";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
@@ -13,9 +14,11 @@ export async function GET(request: Request) {
   
   try {
     const decoded: any = jwt.verify(token, JWT_SECRET);
-    
+    const userId = decoded.userId || decoded.id; // Suporte a diferentes payloads de JWT
+
+    // Busca os livros do usuário
     const books = await prisma.book.findMany({
-      where: { userId: decoded.userId },
+      where: { userId: userId },
       orderBy: { updatedAt: 'desc' },
       select: {
         id: true,
@@ -24,12 +27,33 @@ export async function GET(request: Request) {
         coverUrl: true,
         progress: true,
         filePath: true,
-        currentLocation: true, // <--- ADICIONADO: Importante para o sync reverso
+        currentLocation: true,
+        downloadsCount: true, // <--- ADICIONADO
+        
+        // Trazendo dados do dono para montar o perfil corretamente no App
+        user: {
+            select: {
+                id: true,
+                name: true,
+                image: true,
+                role: true
+            }
+        }
       }
     });
 
-    return NextResponse.json(books);
+    // Flattening (Aplainando) os dados para facilitar no Mobile
+    const formattedBooks = books.map(book => ({
+        ...book,
+        userId: book.user.id,
+        userName: book.user.name,
+        userImage: book.user.image,
+        userRole: book.user.role
+    }));
+
+    return NextResponse.json(formattedBooks);
   } catch (error) {
+    console.error("Erro API Mobile:", error);
     return NextResponse.json({ error: "Invalid Token" }, { status: 401 });
   }
 }
