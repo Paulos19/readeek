@@ -103,6 +103,7 @@ model Book {
   updatedAt       DateTime      @updatedAt
   progress        Int           @default(0)
   currentLocation String?
+  description     String?       @db.Text
   sharable        Boolean       @default(false)
   downloadsCount  Int           @default(0)
   userId          String

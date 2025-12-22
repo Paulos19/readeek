@@ -28,9 +28,10 @@ export async function GET(request: Request) {
         progress: true,
         filePath: true,
         currentLocation: true,
-        downloadsCount: true, // <--- ADICIONADO
+        downloadsCount: true,
         
-        // Trazendo dados do dono para montar o perfil corretamente no App
+        description: true, // <--- ADICIONE AQUI
+        
         user: {
             select: {
                 id: true,
