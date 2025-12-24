@@ -1,36 +1,58 @@
-// app/api/mobile/communities/[id]/members/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // 1. Autenticação Manual JWT
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const { memberId, action } = await req.json(); // action: 'BAN' | 'PROMOTE'
-
-  // 1. Verifica se quem está pedindo é o DONO
-  const requester = await prisma.communityMember.findFirst({
-    where: { communityId: params.id, userId: session.user.id, role: 'OWNER' }
-  });
-
-  if (!requester) return NextResponse.json({ error: "Apenas o dono pode gerenciar membros" }, { status: 403 });
+  const token = authHeader.split(" ")[1];
+  let userId = "";
 
   try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    userId = decoded.userId;
+  } catch (error) {
+    return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+  }
+
+  // 2. Lógica de Gestão
+  try {
+    const { memberId, action } = await req.json(); // action: 'BAN' | 'PROMOTE'
+
+    // Verifica se quem está pedindo é o DONO (OWNER)
+    const requester = await prisma.communityMember.findFirst({
+        where: { communityId: params.id, userId: userId, role: 'OWNER' }
+    });
+
+    if (!requester) {
+        return NextResponse.json({ error: "Permissão negada. Apenas o dono pode gerenciar membros." }, { status: 403 });
+    }
+
     if (action === 'BAN') {
-       // Remove da tabela de membros e adiciona na de banidos (se existir essa lógica, ou só deleta)
+       // Remove o membro da comunidade
        await prisma.communityMember.deleteMany({
          where: { communityId: params.id, userId: memberId }
        });
+       
+       // Opcional: Adicionar à tabela de banidos se seu schema tiver essa modelagem
+       // await prisma.bannedFromCommunity.create(...)
+       
     } else if (action === 'PROMOTE') {
+       // Promove a Membro Honorário
        await prisma.communityMember.updateMany({
          where: { communityId: params.id, userId: memberId },
          data: { role: 'HONORARY_MEMBER' }
        });
     }
+
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: "Erro na operação" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao executar ação" }, { status: 500 });
   }
 }
