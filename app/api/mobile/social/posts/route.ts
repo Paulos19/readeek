@@ -13,16 +13,22 @@ export async function POST(req: Request) {
   catch { return NextResponse.json({ status: 401 }); }
 
   try {
-    const { content, type, bookId } = await req.json(); // type: 'POST' | 'EXCERPT' | 'CHALLENGE'
+    const { content, type, bookId } = await req.json();
 
-    if (!content) return NextResponse.json({ error: "Conteúdo vazio" }, { status: 400 });
+    if (!content.trim()) return NextResponse.json({ error: "Conteúdo vazio" }, { status: 400 });
+
+    // Se for EXCERPT (Citação), o livro é obrigatório
+    if (type === 'EXCERPT' && !bookId) {
+        return NextResponse.json({ error: "Citações precisam de um livro selecionado." }, { status: 400 });
+    }
 
     const post = await prisma.post.create({
       data: {
         content,
         type: type || 'POST',
         userId,
-        bookId: bookId || undefined, // Opcional, só se for Excerpt
+        // Agora aceita bookId para qualquer tipo, ou undefined se for nulo
+        bookId: bookId || undefined, 
       },
       include: {
         user: { select: { name: true, image: true } },
@@ -32,6 +38,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(post);
   } catch (error) {
+    console.error(error); // Log para debug
     return NextResponse.json({ error: "Erro ao criar post" }, { status: 500 });
   }
 }

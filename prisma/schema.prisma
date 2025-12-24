@@ -156,8 +156,8 @@ model Post {
   updatedAt      DateTime   @updatedAt
   userId         String
   user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookId         String
-  book           Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  bookId         String?
+  book           Book?       @relation(fields: [bookId], references: [id], onDelete: Cascade)
   comments       Comment[]
   reactions      Reaction[]
 }
