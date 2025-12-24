@@ -5,7 +5,6 @@ import jwt from "jsonwebtoken";
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
-  // 1. Autenticação (Quem está pedindo?)
   const authHeader = req.headers.get("Authorization");
   let userId = "";
 
@@ -14,21 +13,19 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       userId = decoded.userId;
-    } catch (e) {
-      // Se o token for inválido, seguimos como visitante (userId vazio)
-    }
+    } catch (e) {}
   }
 
   try {
     const { id } = params;
 
-    // 2. Busca Dados Básicos + Status de Membro do Usuário
+    // 1. Busca Dados e Relação do Usuário
     const community = await prisma.community.findUnique({
       where: { id },
       include: {
         _count: { select: { members: true } },
         owner: { select: { name: true, image: true, id: true } },
-        // Verifica APENAS se o usuário atual é membro
+        // Traz apenas a relação do usuário ATUAL para checar permissões
         members: { 
             where: { userId: userId },
             select: { role: true }
@@ -38,24 +35,28 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     if (!community) return NextResponse.json({ error: "Comunidade não encontrada" }, { status: 404 });
 
-    // 3. Verifica Permissões
-    const isMember = community.members.length > 0; // Se retornou algo no array members filtrado, é membro
     const isOwner = community.ownerId === userId;
-    const isPrivate = community.visibility === 'private'; // minúscula conforme padrão definido
+    const userMembership = community.members[0]; // Existirá se for membro
+    const isMember = !!userMembership;
+    const isPrivate = community.visibility === 'private';
 
-    // Se for Privada E (não é membro E não é dono) -> BLOQUEAR CONTEÚDO
+    // Define o cargo do usuário atual (OWNER, HONORARY_MEMBER, MEMBER ou null)
+    const currentUserRole = isOwner ? 'OWNER' : (userMembership?.role || null);
+
+    // Bloqueio de Conteúdo (Privado & Não Membro)
     if (isPrivate && !isMember && !isOwner) {
         return NextResponse.json({
             ...community,
-            posts: [], // Retorna vazio
-            files: [], // Retorna vazio
-            members: [], // Não lista outros membros
-            isLocked: true, // Flag para o Frontend saber que está bloqueado
-            isMember: false
+            posts: [],
+            files: [],
+            members: [],
+            isLocked: true,
+            isMember: false,
+            currentUserRole: null // Sem cargo
         });
     }
 
-    // 4. Se tiver permissão, busca o conteúdo completo
+    // Busca Conteúdo Completo
     const [posts, files, allMembers] = await Promise.all([
         prisma.communityPost.findMany({
             where: { communityId: id },
@@ -73,7 +74,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         }),
         prisma.communityMember.findMany({
             where: { communityId: id },
-            take: 10, // Apenas preview dos membros
+            take: 10,
             include: { user: { select: { name: true, image: true } } }
         })
     ]);
@@ -82,9 +83,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         ...community,
         posts,
         files,
-        members: allMembers,
+        // O array 'members' aqui é a lista pública de participantes, sobrescrevendo a busca individual do passo 1
+        members: allMembers, 
         isLocked: false,
-        isMember: isMember || isOwner
+        isMember: isMember || isOwner,
+        currentUserRole // <--- Enviando o cargo explicitamente
     });
 
   } catch (error) {
