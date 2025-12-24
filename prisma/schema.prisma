@@ -241,6 +241,7 @@ model Community {
   type        String
   visibility  String
   password    String?
+  coverUrl    String?
   ownerId     String
   owner       User     @relation("OwnedCommunities", fields: [ownerId], references: [id], onDelete: Restrict)
   members     CommunityMember[]
