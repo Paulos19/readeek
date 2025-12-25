@@ -15,9 +15,8 @@ export async function POST(
     const token = authHeader.split(" ")[1];
     const decoded: any = jwt.verify(token, JWT_SECRET);
     
-    // CORREÇÃO AQUI: Mudamos de .id para .userId
+    // CORREÇÃO CRÍTICA: Usar .userId para bater com o login
     const followerId = decoded.userId; 
-    
     const followingId = params.id;
 
     if (!followerId) {
@@ -28,7 +27,7 @@ export async function POST(
       return NextResponse.json({ error: "Você não pode seguir a si mesmo" }, { status: 400 });
     }
 
-    // Verifica se já existe a relação
+    // Lógica de Toggle (Seguir/Deixar de Seguir)
     const existingFollow = await prisma.follows.findUnique({
       where: {
         followerId_followingId: {
@@ -39,7 +38,6 @@ export async function POST(
     });
 
     if (existingFollow) {
-      // Deixar de seguir (Unfollow)
       await prisma.follows.delete({
         where: {
           followerId_followingId: {
@@ -50,14 +48,12 @@ export async function POST(
       });
       return NextResponse.json({ isFollowing: false });
     } else {
-      // Seguir (Follow)
       await prisma.follows.create({
         data: {
           followerId,
           followingId,
         },
       });
-      
       return NextResponse.json({ isFollowing: true });
     }
 
