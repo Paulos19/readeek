@@ -8,60 +8,65 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  // 1. Verificação de Segurança (Token)
+  // 1. Identificar quem está fazendo a requisição
   const authHeader = request.headers.get("authorization");
-  if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  let currentUserId: string | null = null;
+
+  if (authHeader) {
+    try {
+      const token = authHeader.split(" ")[1];
+      const decoded: any = jwt.verify(token, JWT_SECRET);
+      currentUserId = decoded.id; // ou decoded.sub dependendo de como você gera o token
+    } catch (e) {
+      // Token inválido ou expirado, segue como visitante
+    }
+  }
+
+  const targetUserId = params.id;
 
   try {
-    const token = authHeader.split(" ")[1];
-    jwt.verify(token, JWT_SECRET);
-
-    const targetUserId = params.id;
-
-    // 2. Buscar dados do usuário alvo
     const userProfile = await prisma.user.findUnique({
       where: { id: targetUserId },
       select: {
         id: true,
         name: true,
         image: true,
-        about: true, // A "Bio"
+        about: true,
         role: true,
-        createdAt: true,
-        // Contadores para o futuro
+        displayedInsigniaIds: true,
         _count: {
-            select: {
-                followers: true,
-                following: true,
-                books: true
-            }
+            select: { followers: true, following: true, books: true }
         },
-        // Insígnias (apenas as IDs ou dados completos se necessário)
-        displayedInsigniaIds: true, 
-        
-        // Livros do usuário
         books: {
+          where: { sharable: true }, // Apenas livros públicos
           orderBy: { updatedAt: 'desc' },
           select: {
-            id: true,
-            title: true,
-            author: true,
-            coverUrl: true,
-            progress: true, // A porcentagem de leitura
-            updatedAt: true,
+            id: true, title: true, author: true, coverUrl: true, progress: true,
           }
         }
       }
     });
 
-    if (!userProfile) {
-      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
+    if (!userProfile) return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
+
+    // 2. Verificar se já segue (se estiver logado)
+    let isFollowing = false;
+    if (currentUserId) {
+      const followCheck = await prisma.follows.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: currentUserId,
+            followingId: targetUserId,
+          },
+        },
+      });
+      isFollowing = !!followCheck;
     }
 
-    return NextResponse.json(userProfile);
+    // Retorna o perfil + o status boolean
+    return NextResponse.json({ ...userProfile, isFollowing });
 
   } catch (error) {
-    console.error("Erro ao buscar perfil:", error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
