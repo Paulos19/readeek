@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Message" ADD COLUMN     "imageUrl" TEXT,
+ADD COLUMN     "type" TEXT NOT NULL DEFAULT 'TEXT',
+ALTER COLUMN "content" DROP NOT NULL;

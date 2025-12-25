@@ -422,15 +422,17 @@ model Conversation {
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  content   String
-  createdAt DateTime @default(now())
-
-  senderId String
-  sender   User   @relation(fields: [senderId], references: [id])
-
+  id             String       @id @default(cuid())
+  content        String?      // Agora opcional, pois pode ser só imagem
+  imageUrl       String?      // URL da imagem se houver
+  type           String       @default("TEXT") // "TEXT" | "IMAGE"
+  createdAt      DateTime     @default(now())
+  
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  read Boolean @default(false)
+  read           Boolean      @default(false)
 }
