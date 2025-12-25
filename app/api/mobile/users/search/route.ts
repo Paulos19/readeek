@@ -1,6 +1,6 @@
 // Backend: pages/api/mobile/users/search.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from '../../../../lib/prisma'; // Ajuste o caminho para seu prisma client
+import { prisma } from '../../../../../lib/prisma'; // Ajuste o caminho para seu prisma client
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return res.status(405).end();
