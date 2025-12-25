@@ -83,9 +83,12 @@ model User {
   communityPostReports   CommunityPostReport[]
   bannedFrom             BannedFromCommunity[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  shop      Shop?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  shop           Shop?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id])
+  conversationId String?
+  messages       Message[]
 }
 
 model Follows {
@@ -384,9 +387,10 @@ model Product {
 
   images ProductImage[]
 
-  isSold    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isSold        Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[]
 }
 
 model ProductImage {
@@ -400,4 +404,33 @@ enum Currency {
   BRL
   CREDITS
   TRADE // Para trocas
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // Útil para ordenar pela última mensagem
+
+  // Contexto da negociação (Opcional, mas bom para Marketplace)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  // Participantes (Muitos para Muitos implícito)
+  participants User[]
+
+  messages Message[]
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+
+  senderId String
+  sender   User   @relation(fields: [senderId], references: [id])
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  read Boolean @default(false)
 }
