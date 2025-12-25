@@ -8,7 +8,6 @@ export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  // 1. Identificar quem está fazendo a requisição
   const authHeader = request.headers.get("authorization");
   let currentUserId: string | null = null;
 
@@ -16,9 +15,12 @@ export async function GET(
     try {
       const token = authHeader.split(" ")[1];
       const decoded: any = jwt.verify(token, JWT_SECRET);
-      currentUserId = decoded.id; // ou decoded.sub dependendo de como você gera o token
+      
+      // CORREÇÃO AQUI: Mudamos de .id para .userId
+      currentUserId = decoded.userId; 
+      
     } catch (e) {
-      // Token inválido ou expirado, segue como visitante
+      // Token inválido, segue como visitante
     }
   }
 
@@ -38,7 +40,8 @@ export async function GET(
             select: { followers: true, following: true, books: true }
         },
         books: {
-          where: { sharable: true }, // Apenas livros públicos
+          // ATENÇÃO AQUI PARA O PRÓXIMO PROBLEMA
+          where: { sharable: true }, 
           orderBy: { updatedAt: 'desc' },
           select: {
             id: true, title: true, author: true, coverUrl: true, progress: true,
@@ -49,7 +52,6 @@ export async function GET(
 
     if (!userProfile) return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
 
-    // 2. Verificar se já segue (se estiver logado)
     let isFollowing = false;
     if (currentUserId) {
       const followCheck = await prisma.follows.findUnique({
@@ -63,10 +65,10 @@ export async function GET(
       isFollowing = !!followCheck;
     }
 
-    // Retorna o perfil + o status boolean
     return NextResponse.json({ ...userProfile, isFollowing });
 
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }

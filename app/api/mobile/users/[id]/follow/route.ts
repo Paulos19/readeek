@@ -14,8 +14,15 @@ export async function POST(
   try {
     const token = authHeader.split(" ")[1];
     const decoded: any = jwt.verify(token, JWT_SECRET);
-    const followerId = decoded.id;
+    
+    // CORREÇÃO AQUI: Mudamos de .id para .userId
+    const followerId = decoded.userId; 
+    
     const followingId = params.id;
+
+    if (!followerId) {
+        return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+    }
 
     if (followerId === followingId) {
       return NextResponse.json({ error: "Você não pode seguir a si mesmo" }, { status: 400 });
@@ -51,13 +58,11 @@ export async function POST(
         },
       });
       
-      // Opcional: Criar notificação aqui
-      
       return NextResponse.json({ isFollowing: true });
     }
 
   } catch (error) {
-    console.error(error);
+    console.error("Follow Error:", error);
     return NextResponse.json({ error: "Erro ao processar ação" }, { status: 500 });
   }
 }
