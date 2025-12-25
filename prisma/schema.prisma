@@ -82,6 +82,9 @@ model User {
   communityReactions     CommunityReaction[]
   communityPostReports   CommunityPostReport[]
   bannedFrom             BannedFromCommunity[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
 
 model Follows {
