@@ -7,12 +7,26 @@ const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
 // GET (Mantém igual, só garante que retorna type e imageUrl)
 export async function GET(request: Request, { params }: { params: { id: string } }) {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
+    const token = authHeader.split(" ")[1];
+    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const userId = decoded.userId;
+
     const messages = await prisma.message.findMany({
-      where: { conversationId: params.id },
+      where: { 
+        conversationId: params.id,
+        // CORREÇÃO: Não trazer mensagens que o usuário marcou como deletadas
+        NOT: {
+            deletedForIds: { has: userId }
+        }
+      },
       orderBy: { createdAt: 'desc' },
       include: { sender: { select: { id: true, name: true, image: true } } }
     });
+
     return NextResponse.json(messages);
   } catch (error) {
     return NextResponse.json({ error: "Erro ao buscar mensagens" }, { status: 500 });

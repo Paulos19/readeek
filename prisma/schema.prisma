@@ -433,6 +433,7 @@ model Message {
   
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  deletedForIds String[] @default([])
 
   read           Boolean      @default(false)
 }

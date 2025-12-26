@@ -13,22 +13,42 @@ export async function POST(request: Request) {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
 
-    const { messageIds } = await request.json();
+    const { messageIds, type } = await request.json(); // type: 'ME' | 'EVERYONE'
 
-    if (!Array.isArray(messageIds) || messageIds.length === 0) {
-        return NextResponse.json({ error: "Nenhuma mensagem selecionada" }, { status: 400 });
+    if (!messageIds || messageIds.length === 0) {
+        return NextResponse.json({ error: "Nada selecionado" }, { status: 400 });
     }
 
-    // Deleta apenas se o usuário for o dono da mensagem
-    const result = await prisma.message.deleteMany({
-      where: {
-        id: { in: messageIds },
-        senderId: userId // Segurança: só apaga as próprias
-      }
-    });
+    if (type === 'EVERYONE') {
+        // Apaga do banco (ninguém vê mais)
+        // Segurança: Só apaga se o usuário for o dono
+        await prisma.message.deleteMany({
+            where: {
+                id: { in: messageIds },
+                senderId: userId // Garante que só apaga as suas para todos
+            }
+        });
+    } else {
+        // type === 'ME'
+        // Adiciona o ID do usuário ao array deletedForIds
+        // Prisma não tem "push" direto em updateMany para arrays escalares em todos os DBs,
+        // então faremos um loop ou query raw. Para segurança e compatibilidade, faremos em loop transaction.
+        
+        await prisma.$transaction(
+            messageIds.map((msgId: string) => 
+                prisma.message.update({
+                    where: { id: msgId },
+                    data: {
+                        deletedForIds: { push: userId }
+                    }
+                })
+            )
+        );
+    }
 
-    return NextResponse.json({ success: true, count: result.count });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: "Erro ao apagar mensagens" }, { status: 500 });
+    console.error("Delete error:", error);
+    return NextResponse.json({ error: "Erro ao apagar" }, { status: 500 });
   }
 }
