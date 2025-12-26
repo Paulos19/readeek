@@ -20,13 +20,16 @@ export async function GET(
     const messages = await prisma.message.findMany({
       where: { 
         conversationId: params.id,
-        // Não mostra mensagens que este usuário deletou "para mim"
-        NOT: {
-            deletedForIds: { has: userId }
-        }
+        NOT: { deletedForIds: { has: userId } }
       },
       orderBy: { createdAt: 'desc' },
-      include: { sender: { select: { id: true, name: true, image: true } } }
+      include: { 
+        sender: { select: { id: true, name: true, image: true } },
+        // Inclui a mensagem original se for uma resposta
+        replyTo: { 
+            select: { id: true, content: true, type: true, sender: { select: { name: true } } } 
+        }
+      }
     });
 
     return NextResponse.json(messages);
@@ -51,6 +54,7 @@ export async function POST(
     const content = formData.get("content") as string;
     const imageFile = formData.get("image") as File;
     const audioFile = formData.get("audio") as File;
+    const replyToId = formData.get("replyToId") as string | null; // <--- NOVO
 
     if (!content && !imageFile && !audioFile) {
         return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
@@ -60,21 +64,15 @@ export async function POST(
     let audioUrl = null;
     let type = "TEXT";
 
-    // Upload de Imagem
     if (imageFile) {
       type = "IMAGE";
-      const blob = await put(`chat/${params.id}/images/${Date.now()}-${imageFile.name}`, imageFile, {
-        access: 'public',
-      });
+      const blob = await put(`chat/${params.id}/images/${Date.now()}-${imageFile.name}`, imageFile, { access: 'public' });
       imageUrl = blob.url;
     }
 
-    // Upload de Áudio
     if (audioFile) {
       type = "AUDIO";
-      const blob = await put(`chat/${params.id}/audio/${Date.now()}.m4a`, audioFile, {
-        access: 'public',
-      });
+      const blob = await put(`chat/${params.id}/audio/${Date.now()}.m4a`, audioFile, { access: 'public' });
       audioUrl = blob.url;
     }
 
@@ -86,11 +84,14 @@ export async function POST(
         imageUrl,
         audioUrl,
         type,
+        replyToId: replyToId || null, // <--- SALVA REFERÊNCIA
       },
-      include: { sender: { select: { id: true, name: true, image: true } } }
+      include: { 
+        sender: { select: { id: true, name: true, image: true } },
+        replyTo: { select: { id: true, content: true, type: true, sender: { select: { name: true } } } }
+      }
     });
 
-    // Atualiza a conversa para subir na lista
     await prisma.conversation.update({
       where: { id: params.id },
       data: { updatedAt: new Date() }
