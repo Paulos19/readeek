@@ -1,10 +1,66 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
-import { put } from "@vercel/blob"; // Ensure you installed: npm install @vercel/blob
+import { put } from "@vercel/blob"; 
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
+// --- GET: Listar Posts (Feed Global ou Filtro por Usuário) ---
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get("userId");
+
+    // Construção do filtro dinâmico
+    const whereClause: any = {
+      deletedAt: null // Garante que posts deletados não apareçam
+    };
+
+    // Se houver userId na URL, filtra apenas os posts desse usuário
+    if (userId) {
+      whereClause.userId = userId;
+    }
+
+    const posts = await prisma.post.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+            email: true
+          }
+        },
+        book: {
+          select: {
+            id: true,
+            title: true,
+            coverUrl: true,
+            author: true
+          }
+        },
+        _count: {
+          select: {
+            reactions: true, // Confirme se no seu schema é 'reactions' ou 'likes'
+            comments: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return NextResponse.json(posts);
+
+  } catch (error) {
+    console.error("[POSTS_GET]", error);
+    return NextResponse.json({ error: "Erro ao buscar posts" }, { status: 500 });
+  }
+}
+
+// --- POST: Criar Novo Post (Com suporte a Imagens) ---
 export async function POST(req: Request) {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -45,7 +101,6 @@ export async function POST(req: Request) {
     } 
     // --- SCENARIO 2: PLAIN TEXT (JSON) ---
     else {
-        // This was the part causing the error previously when receiving files
         const body = await req.json();
         content = body.content;
         type = body.type || "POST";
@@ -68,7 +123,7 @@ export async function POST(req: Request) {
         type: type as any,
         userId,
         bookId: bookId || undefined,
-        imageUrl: imageUrl || undefined // Make sure you ran the prisma migration for this field
+        imageUrl: imageUrl || undefined 
       },
       include: {
         user: { select: { name: true, image: true } },

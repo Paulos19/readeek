@@ -7,7 +7,393 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// -- ENUMS --
+model User {
+  id                     String                @id @default(cuid())
+  name                   String?
+  email                  String                @unique
+  emailVerified          DateTime?
+  image                  String?
+  password               String
+  role                   UserRole              @default(USER)
+  about                  String?
+  profileVisibility      ProfileVisibility     @default(PUBLIC)
+  credits                Int                   @default(50)
+  displayedInsigniaIds   String[]
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  conversationId         String?
+  myBubbleColor          String                @default("#059669")
+  otherBubbleColor       String                @default("#27272a")
+  wallpaperUrl           String?
+  accounts               Account[]
+  bannedFrom             BannedFromCommunity[]
+  books                  Book[]
+  receivedRequests       BookRequest[]         @relation("ReceivedRequests")
+  sentRequests           BookRequest[]         @relation("SentRequests")
+  comments               Comment[]
+  ownedCommunities       Community[]           @relation("OwnedCommunities")
+  communityComments      CommunityComment[]
+  uploadedCommunityFiles CommunityFile[]
+  communityMemberships   CommunityMember[]     @relation("CommunityMemberships")
+  communityPosts         CommunityPost[]       @relation("CommunityPosts")
+  communityPostReports   CommunityPostReport[]
+  communityReactions     CommunityReaction[]
+  following              Follows[]             @relation("follower")
+  followers              Follows[]             @relation("following")
+  Highlight              Highlight[]
+  insignias              InsigniasOnUsers[]
+  messages               Message[]
+  notifications          Notification[]
+  posts                  Post[]
+  reactions              Reaction[]
+  sessions               Session[]
+  shop                   Shop?
+  conversation           Conversation?         @relation(fields: [conversationId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("INFO")
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Follows {
+  followerId  String
+  followingId String
+  follower    User   @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User   @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([followerId, followingId])
+}
+
+model Book {
+  id              String        @id @default(cuid())
+  title           String
+  author          String?
+  coverUrl        String?
+  filePath        String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  userId          String
+  currentLocation String?
+  progress        Int           @default(0)
+  sharable        Boolean       @default(false)
+  downloadsCount  Int           @default(0)
+  description     String?
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requests        BookRequest[] @relation("RequestedBook")
+  Highlight       Highlight[]
+  posts           Post[]
+}
+
+model BookRequest {
+  id          String        @id @default(cuid())
+  createdAt   DateTime      @default(now())
+  status      RequestStatus @default(PENDING)
+  bookId      String
+  requesterId String
+  ownerId     String
+  book        Book          @relation("RequestedBook", fields: [bookId], references: [id], onDelete: Cascade)
+  owner       User          @relation("ReceivedRequests", fields: [ownerId], references: [id], onDelete: Cascade)
+  requester   User          @relation("SentRequests", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, requesterId])
+}
+
+model Insignia {
+  id          String             @id @default(cuid())
+  name        String
+  description String
+  imageUrl    String
+  type        InsigniaType       @default(FREE)
+  price       Int?
+  users       InsigniasOnUsers[]
+}
+
+model InsigniasOnUsers {
+  userId     String
+  insigniaId String
+  assignedAt DateTime @default(now())
+  insignia   Insignia @relation(fields: [insigniaId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, insigniaId])
+}
+
+model Post {
+  id             String     @id @default(cuid())
+  content        String
+  type           PostType   @default(POST)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  userId         String
+  bookId         String?
+  progressAtPost Int?
+  imageUrl       String?
+  comments       Comment[]
+  book           Book?      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions      Reaction[]
+}
+
+model Comment {
+  id        String     @id @default(cuid())
+  text      String
+  createdAt DateTime   @default(now())
+  userId    String
+  postId    String
+  parentId  String?
+  parent    Comment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies   Comment[]  @relation("CommentReplies")
+  post      Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  userId    String
+  postId    String
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId, emoji])
+}
+
+model Highlight {
+  id        String   @id @default(cuid())
+  cfiRange  String
+  text      String
+  createdAt DateTime @default(now())
+  userId    String
+  bookId    String
+  color     String   @default("rgba(255, 255, 0, 0.4)")
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Community {
+  id          String                @id @default(cuid())
+  name        String
+  description String?
+  type        String
+  visibility  String
+  password    String?
+  ownerId     String
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  coverUrl    String?
+  bannedUsers BannedFromCommunity[]
+  owner       User                  @relation("OwnedCommunities", fields: [ownerId], references: [id])
+  files       CommunityFile[]
+  members     CommunityMember[]
+  posts       CommunityPost[]
+}
+
+model CommunityMember {
+  id          String        @id @default(cuid())
+  userId      String
+  communityId String
+  createdAt   DateTime      @default(now())
+  role        CommunityRole @default(MEMBER)
+  community   Community     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user        User          @relation("CommunityMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, communityId])
+}
+
+model BannedFromCommunity {
+  id          String    @id @default(cuid())
+  userId      String
+  communityId String
+  bannedAt    DateTime  @default(now())
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, communityId])
+}
+
+model CommunityFile {
+  id          String    @id @default(cuid())
+  title       String
+  author      String?
+  coverUrl    String?
+  fileUrl     String
+  fileType    String
+  communityId String
+  uploaderId  String
+  createdAt   DateTime  @default(now())
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  uploader    User      @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+}
+
+model CommunityPost {
+  id          String                @id @default(cuid())
+  content     String
+  authorId    String
+  communityId String
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  comments    CommunityComment[]
+  author      User                  @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
+  community   Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  reports     CommunityPostReport[]
+  reactions   CommunityReaction[]
+}
+
+model CommunityComment {
+  id                 String              @id @default(cuid())
+  content            String
+  authorId           String
+  postId             String
+  createdAt          DateTime            @default(now())
+  parentId           String?
+  author             User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent             CommunityComment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies            CommunityComment[]  @relation("CommentReplies")
+  post               CommunityPost       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  communityReactions CommunityReaction[]
+}
+
+model CommunityReaction {
+  id        String            @id @default(cuid())
+  emoji     String
+  userId    String
+  postId    String?
+  createdAt DateTime          @default(now())
+  commentId String?
+  comment   CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  post      CommunityPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CommunityPostReport {
+  id         String        @id @default(cuid())
+  postId     String
+  reporterId String
+  reason     String?
+  resolved   Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  post       CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reporter   User          @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+}
+
+model Shop {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  imageUrl    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  ownerId     String    @unique
+  products    Product[]
+  owner       User      @relation(fields: [ownerId], references: [id])
+}
+
+model Product {
+  id            String         @id @default(cuid())
+  title         String
+  description   String
+  price         Decimal
+  currency      Currency       @default(BRL)
+  stock         Int            @default(1)
+  condition     String         @default("NEW")
+  address       String
+  shopId        String
+  isSold        Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[]
+  shop          Shop           @relation(fields: [shopId], references: [id])
+  images        ProductImage[]
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  url       String
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id           String    @id @default(cuid())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  productId    String?
+  product      Product?  @relation(fields: [productId], references: [id])
+  messages     Message[]
+  participants User[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  content        String?
+  createdAt      DateTime     @default(now())
+  senderId       String
+  conversationId String
+  read           Boolean      @default(false)
+  imageUrl       String?
+  type           String       @default("TEXT")
+  deletedForIds  String[]     @default([])
+  audioUrl       String?
+  replyToId      String?
+  fileName       String?
+  fileSize       Int?
+  fileUrl        String?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo        Message?     @relation("ReplyRelation", fields: [replyToId], references: [id], onUpdate: NoAction)
+  replies        Message[]    @relation("ReplyRelation")
+  sender         User         @relation(fields: [senderId], references: [id])
+}
+
 enum PostType {
   POST
   CHALLENGE
@@ -45,412 +431,4 @@ enum Currency {
   BRL
   CREDITS
   TRADE
-}
-
-// -- MODELS --
-
-model User {
-  id                   String    @id @default(cuid())
-  name                 String?
-  email                String    @unique
-  password             String
-  emailVerified        DateTime?
-  image                String?
-  role                 UserRole  @default(USER)
-  about                String?   @db.Text
-  profileVisibility    ProfileVisibility @default(PUBLIC)
-  credits              Int       @default(50)
-  displayedInsigniaIds String[]
-
-  accounts         Account[]
-  sessions         Session[]
-  books            Book[]
-  posts            Post[]
-  comments         Comment[]
-  reactions        Reaction[]
-  Highlight        Highlight[]
-  sentRequests     BookRequest[] @relation("SentRequests")
-  receivedRequests BookRequest[] @relation("ReceivedRequests")
-  insignias        InsigniasOnUsers[]
-  following        Follows[]     @relation("follower")
-  followers        Follows[]     @relation("following")
-
-  ownedCommunities       Community[]       @relation("OwnedCommunities")
-  communityMemberships   CommunityMember[] @relation("CommunityMemberships")
-  uploadedCommunityFiles CommunityFile[]
-  communityPosts         CommunityPost[]   @relation("CommunityPosts")
-  communityComments      CommunityComment[]
-  communityReactions     CommunityReaction[]
-  communityPostReports   CommunityPostReport[]
-  bannedFrom             BannedFromCommunity[]
-  
-  wallpaperUrl     String?
-  myBubbleColor    String    @default("#059669")
-  otherBubbleColor String    @default("#27272a")
-
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  
-  shop           Shop?
-  
-  conversation   Conversation?  @relation(fields: [conversationId], references: [id])
-  conversationId String?
-  messages       Message[]
-  
-  notifications  Notification[]
-}
-
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  title     String
-  message   String
-  type      String   @default("INFO")
-  read      Boolean  @default(false)
-  link      String?
-  
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-}
-
-model Follows {
-  followerId  String
-  follower    User   @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
-  followingId String
-  following   User   @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
-
-  @@id([followerId, followingId])
-}
-
-model Book {
-  id              String   @id @default(cuid())
-  title           String
-  author          String?
-  coverUrl        String?
-  filePath        String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  progress        Int      @default(0)
-  currentLocation String?
-  description     String?  @db.Text
-  sharable        Boolean  @default(false)
-  downloadsCount  Int      @default(0)
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  posts           Post[]
-  Highlight       Highlight[]
-  requests        BookRequest[] @relation("RequestedBook")
-}
-
-model BookRequest {
-  id          String        @id @default(cuid())
-  createdAt   DateTime      @default(now())
-  status      RequestStatus @default(PENDING)
-  bookId      String
-  book        Book          @relation("RequestedBook", fields: [bookId], references: [id], onDelete: Cascade)
-  requesterId String
-  requester   User          @relation("SentRequests", fields: [requesterId], references: [id], onDelete: Cascade)
-  ownerId     String
-  owner       User          @relation("ReceivedRequests", fields: [ownerId], references: [id], onDelete: Cascade)
-
-  @@unique([bookId, requesterId])
-}
-
-model Insignia {
-  id          String   @id @default(cuid())
-  name        String
-  description String
-  imageUrl    String
-  type        InsigniaType @default(FREE)
-  price       Int?
-  users       InsigniasOnUsers[]
-}
-
-model InsigniasOnUsers {
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     String
-  insignia   Insignia @relation(fields: [insigniaId], references: [id], onDelete: Cascade)
-  insigniaId String
-  assignedAt DateTime @default(now())
-
-  @@id([userId, insigniaId])
-}
-
-model Post {
-  id             String   @id @default(cuid())
-  content        String   @db.Text
-  type           PostType @default(POST)
-  imageUrl       String?
-  progressAtPost Int?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookId         String?
-  book           Book?    @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  comments       Comment[]
-  reactions      Reaction[]
-}
-
-model Comment {
-  id        String   @id @default(cuid())
-  text      String
-  createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  reactions Reaction[]
-  parentId  String?
-  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  replies   Comment[] @relation("CommentReplies")
-}
-
-model Reaction {
-  id        String   @id @default(cuid())
-  emoji     String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  commentId String?
-  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, postId, emoji])
-}
-
-model Highlight {
-  id        String   @id @default(cuid())
-  cfiRange  String   @db.Text
-  text      String   @db.Text
-  color     String   @default("rgba(255, 255, 0, 0.4)")
-  createdAt DateTime @default(now())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookId    String
-  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
-}
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-// -- COMMUNITY MODELS --
-
-model Community {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  type        String
-  visibility  String
-  password    String?
-  coverUrl    String?
-  ownerId     String
-  owner       User     @relation("OwnedCommunities", fields: [ownerId], references: [id], onDelete: Restrict)
-  members     CommunityMember[]
-  files       CommunityFile[]
-  posts       CommunityPost[]
-  bannedUsers BannedFromCommunity[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model CommunityMember {
-  id          String        @id @default(cuid())
-  userId      String
-  user        User          @relation("CommunityMemberships", fields: [userId], references: [id], onDelete: Cascade)
-  communityId String
-  community   Community     @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  role        CommunityRole @default(MEMBER)
-  createdAt   DateTime      @default(now())
-
-  @@unique([userId, communityId])
-}
-
-model BannedFromCommunity {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  communityId String
-  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  bannedAt    DateTime  @default(now())
-
-  @@unique([userId, communityId])
-}
-
-model CommunityFile {
-  id          String    @id @default(cuid())
-  title       String
-  author      String?
-  coverUrl    String?
-  fileUrl     String
-  fileType    String
-  communityId String
-  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  uploaderId  String
-  uploader    User      @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-}
-
-model CommunityPost {
-  id          String    @id @default(cuid())
-  content     String
-  authorId    String
-  author      User      @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
-  communityId String
-  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  comments    CommunityComment[]
-  reactions   CommunityReaction[]
-  reports     CommunityPostReport[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-}
-
-model CommunityComment {
-  id          String    @id @default(cuid())
-  content     String
-  authorId    String
-  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  postId      String
-  post        CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-  parentId    String?
-  parent      CommunityComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  replies     CommunityComment[] @relation("CommentReplies")
-  communityReactions CommunityReaction[]
-}
-
-model CommunityReaction {
-  id        String @id @default(cuid())
-  emoji     String
-  userId    String
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  postId    String?
-  post      CommunityPost? @relation(fields: [postId], references: [id], onDelete: Cascade)
-  commentId String?
-  comment   CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-}
-
-model CommunityPostReport {
-  id         String        @id @default(cuid())
-  postId     String
-  post       CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  reporterId String
-  reporter   User          @relation(fields: [reporterId], references: [id], onDelete: Cascade)
-  reason     String?
-  resolved   Boolean       @default(false)
-  createdAt  DateTime      @default(now())
-}
-
-model Shop {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  imageUrl    String? 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  ownerId String @unique
-  owner   User   @relation(fields: [ownerId], references: [id])
-
-  products Product[]
-}
-
-model Product {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  price       Decimal 
-  currency    Currency @default(BRL) 
-  stock       Int      @default(1)
-  condition   String   @default("NEW") 
-  address     String 
-
-  shopId String
-  shop   Shop   @relation(fields: [shopId], references: [id])
-
-  images ProductImage[]
-
-  isSold        Boolean        @default(false)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  conversations Conversation[]
-}
-
-model ProductImage {
-  id        String  @id @default(cuid())
-  url       String
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-}
-
-model Conversation {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt 
-
-  productId String?
-  product   Product? @relation(fields: [productId], references: [id])
-
-  participants User[]
-  messages     Message[]
-}
-
-model Message {
-  id        String   @id @default(cuid())
-  content   String? 
-  imageUrl  String? 
-  audioUrl  String?
-  type      String   @default("TEXT") 
-  createdAt DateTime @default(now())
-
-  senderId  String
-  sender    User     @relation(fields: [senderId], references: [id])
-  replyToId String?
-  replyTo   Message? @relation("ReplyRelation", fields: [replyToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  replies   Message[] @relation("ReplyRelation")
-
-  fileUrl   String?
-  fileName  String?
-  fileSize  Int?
-
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  deletedForIds  String[]     @default([])
-
-  read Boolean @default(false)
 }
