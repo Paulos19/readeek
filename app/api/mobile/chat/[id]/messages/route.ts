@@ -53,26 +53,41 @@ export async function POST(
     const content = formData.get("content") as string;
     const imageFile = formData.get("image") as File;
     const audioFile = formData.get("audio") as File;
+    const docFile = formData.get("file") as File; // <--- Arquivo genérico
     const replyToId = formData.get("replyToId") as string | null;
 
-    if (!content && !imageFile && !audioFile) {
+    if (!content && !imageFile && !audioFile && !docFile) {
         return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
     }
 
     let imageUrl = null;
     let audioUrl = null;
+    let fileUrl = null;
+    let fileName = null;
+    let fileSize = null;
     let type = "TEXT";
 
+    // 1. Imagem
     if (imageFile) {
       type = "IMAGE";
       const blob = await put(`chat/${params.id}/images/${Date.now()}-${imageFile.name}`, imageFile, { access: 'public' });
       imageUrl = blob.url;
     }
 
+    // 2. Áudio
     if (audioFile) {
       type = "AUDIO";
       const blob = await put(`chat/${params.id}/audio/${Date.now()}.m4a`, audioFile, { access: 'public' });
       audioUrl = blob.url;
+    }
+
+    // 3. Arquivo Genérico
+    if (docFile) {
+      type = "FILE";
+      fileName = docFile.name;
+      fileSize = docFile.size;
+      const blob = await put(`chat/${params.id}/files/${Date.now()}-${docFile.name}`, docFile, { access: 'public' });
+      fileUrl = blob.url;
     }
 
     const message = await prisma.message.create({
@@ -82,6 +97,9 @@ export async function POST(
         content: content || null,
         imageUrl,
         audioUrl,
+        fileUrl,
+        fileName,
+        fileSize,
         type,
         replyToId: replyToId || null,
       },

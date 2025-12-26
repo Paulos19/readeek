@@ -437,6 +437,10 @@ model Message {
   replyToId      String?
   replyTo        Message?     @relation("ReplyRelation", fields: [replyToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   replies        Message[]    @relation("ReplyRelation")
+
+  fileUrl        String?
+  fileName       String?
+  fileSize       Int?
   
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
