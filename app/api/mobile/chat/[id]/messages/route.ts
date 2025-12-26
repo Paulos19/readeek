@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { put } from "@vercel/blob"; // Certifique-se de ter @vercel/blob configurado
+import { put } from "@vercel/blob";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
-// GET (Mantém igual, só garante que retorna type e imageUrl)
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   const authHeader = request.headers.get("authorization");
   if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -18,7 +20,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     const messages = await prisma.message.findMany({
       where: { 
         conversationId: params.id,
-        // CORREÇÃO: Não trazer mensagens que o usuário marcou como deletadas
+        // Não mostra mensagens que este usuário deletou "para mim"
         NOT: {
             deletedForIds: { has: userId }
         }
@@ -33,8 +35,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 }
 
-// POST (Atualizado para Imagens)
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   const authHeader = request.headers.get("authorization");
   if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -43,39 +47,50 @@ export async function POST(request: Request, { params }: { params: { id: string 
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
 
-    // Processar FormData (pode vir texto OU arquivo)
     const formData = await request.formData();
     const content = formData.get("content") as string;
-    const file = formData.get("image") as File;
+    const imageFile = formData.get("image") as File;
+    const audioFile = formData.get("audio") as File;
 
-    if (!content && !file) {
+    if (!content && !imageFile && !audioFile) {
         return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
     }
 
     let imageUrl = null;
+    let audioUrl = null;
     let type = "TEXT";
 
-    // Upload da imagem se existir
-    if (file) {
+    // Upload de Imagem
+    if (imageFile) {
       type = "IMAGE";
-      const blob = await put(`chat/${params.id}/${Date.now()}-${file.name}`, file, {
+      const blob = await put(`chat/${params.id}/images/${Date.now()}-${imageFile.name}`, imageFile, {
         access: 'public',
       });
       imageUrl = blob.url;
+    }
+
+    // Upload de Áudio
+    if (audioFile) {
+      type = "AUDIO";
+      const blob = await put(`chat/${params.id}/audio/${Date.now()}.m4a`, audioFile, {
+        access: 'public',
+      });
+      audioUrl = blob.url;
     }
 
     const message = await prisma.message.create({
       data: {
         conversationId: params.id,
         senderId: userId,
-        content: content || null, // Pode ser nulo se for só imagem
+        content: content || null,
         imageUrl,
+        audioUrl,
         type,
       },
       include: { sender: { select: { id: true, name: true, image: true } } }
     });
 
-    // Atualiza conversa
+    // Atualiza a conversa para subir na lista
     await prisma.conversation.update({
       where: { id: params.id },
       data: { updatedAt: new Date() }
@@ -83,7 +98,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     return NextResponse.json(message);
   } catch (error) {
-    console.error("Erro no envio:", error);
+    console.error("Erro envio msg:", error);
     return NextResponse.json({ error: "Erro ao enviar mensagem" }, { status: 500 });
   }
 }

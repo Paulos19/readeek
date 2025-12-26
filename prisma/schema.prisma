@@ -428,6 +428,7 @@ model Message {
   id             String       @id @default(cuid())
   content        String?      // Agora opcional, pois pode ser só imagem
   imageUrl       String?      // URL da imagem se houver
+  audioUrl       String?
   type           String       @default("TEXT") // "TEXT" | "IMAGE"
   createdAt      DateTime     @default(now())
   
