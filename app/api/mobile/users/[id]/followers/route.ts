@@ -9,21 +9,17 @@ export async function GET(
   try {
     const userId = params.id;
 
-    // Busca registros na tabela de relacionamento (Follows)
-    // Assumindo que o model se chama 'Follows' ou similar
-    // onde 'followingId' é quem está sendo seguido (o usuário do perfil)
     const followersRel = await prisma.follows.findMany({
       where: {
         followingId: userId,
       },
       include: {
-        follower: { // Inclui os dados de quem está seguindo
+        follower: { // O objeto do usuário está aqui
           select: {
             id: true,
             name: true,
             email: true,
             image: true,
-            // Adicione outros campos se necessário
           }
         }
       },
@@ -32,8 +28,8 @@ export async function GET(
       }
     });
 
-    // Mapeia para retornar uma lista limpa de usuários
-    const followers = followersRel.map(f => f.followerId);
+    // CORREÇÃO: Retornar o objeto 'follower' inteiro, não apenas o ID
+    const followers = followersRel.map(f => f.follower);
 
     return NextResponse.json(followers);
 
