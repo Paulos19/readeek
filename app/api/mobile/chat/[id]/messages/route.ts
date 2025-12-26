@@ -25,7 +25,6 @@ export async function GET(
       orderBy: { createdAt: 'desc' },
       include: { 
         sender: { select: { id: true, name: true, image: true } },
-        // Inclui a mensagem original se for uma resposta
         replyTo: { 
             select: { id: true, content: true, type: true, sender: { select: { name: true } } } 
         }
@@ -54,7 +53,7 @@ export async function POST(
     const content = formData.get("content") as string;
     const imageFile = formData.get("image") as File;
     const audioFile = formData.get("audio") as File;
-    const replyToId = formData.get("replyToId") as string | null; // <--- NOVO
+    const replyToId = formData.get("replyToId") as string | null;
 
     if (!content && !imageFile && !audioFile) {
         return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
@@ -84,7 +83,7 @@ export async function POST(
         imageUrl,
         audioUrl,
         type,
-        replyToId: replyToId || null, // <--- SALVA REFERÊNCIA
+        replyToId: replyToId || null,
       },
       include: { 
         sender: { select: { id: true, name: true, image: true } },
