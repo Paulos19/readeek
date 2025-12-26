@@ -25,9 +25,7 @@ export async function GET(
       orderBy: { createdAt: 'desc' },
       include: { 
         sender: { select: { id: true, name: true, image: true } },
-        replyTo: { 
-            select: { id: true, content: true, type: true, sender: { select: { name: true } } } 
-        }
+        replyTo: { select: { id: true, content: true, type: true, sender: { select: { name: true } } } }
       }
     });
 
@@ -49,11 +47,16 @@ export async function POST(
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
 
+    const sender = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true }
+    });
+
     const formData = await request.formData();
     const content = formData.get("content") as string;
     const imageFile = formData.get("image") as File;
     const audioFile = formData.get("audio") as File;
-    const docFile = formData.get("file") as File; // <--- Arquivo genérico
+    const docFile = formData.get("file") as File;
     const replyToId = formData.get("replyToId") as string | null;
 
     if (!content && !imageFile && !audioFile && !docFile) {
@@ -67,21 +70,16 @@ export async function POST(
     let fileSize = null;
     let type = "TEXT";
 
-    // 1. Imagem
     if (imageFile) {
       type = "IMAGE";
       const blob = await put(`chat/${params.id}/images/${Date.now()}-${imageFile.name}`, imageFile, { access: 'public' });
       imageUrl = blob.url;
     }
-
-    // 2. Áudio
     if (audioFile) {
       type = "AUDIO";
       const blob = await put(`chat/${params.id}/audio/${Date.now()}.m4a`, audioFile, { access: 'public' });
       audioUrl = blob.url;
     }
-
-    // 3. Arquivo Genérico
     if (docFile) {
       type = "FILE";
       fileName = docFile.name;
@@ -114,9 +112,35 @@ export async function POST(
       data: { updatedAt: new Date() }
     });
 
+    // --- NOTIFICAÇÃO (Gatilho) ---
+    const conversation = await prisma.conversation.findUnique({
+        where: { id: params.id },
+        include: { participants: { select: { id: true } } }
+    });
+
+    if (conversation) {
+        const recipients = conversation.participants.filter(p => p.id !== userId);
+        const notifMessage = type === 'IMAGE' ? '📷 Imagem' : 
+                             type === 'AUDIO' ? '🎵 Áudio' : 
+                             type === 'FILE' ? '📄 Arquivo' : 
+                             content;
+
+        await Promise.all(recipients.map(recipient => 
+            prisma.notification.create({
+                data: {
+                    userId: recipient.id,
+                    title: sender?.name || "Nova Mensagem",
+                    message: notifMessage || "Nova mensagem recebida",
+                    type: "MESSAGE",
+                    link: `/(app)/chat/${params.id}`
+                }
+            })
+        ));
+    }
+    // ----------------------------
+
     return NextResponse.json(message);
   } catch (error) {
-    console.error("Erro envio msg:", error);
     return NextResponse.json({ error: "Erro ao enviar mensagem" }, { status: 500 });
   }
 }

@@ -12,68 +12,65 @@ export async function POST(
   if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    // 1. Identificar Comprador
     const token = authHeader.split(" ")[1];
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const buyerId = decoded.userId;
     const productId = params.id;
 
-    // 2. Transação Atômica (Tudo ou Nada)
+    // Transação de Compra
     const result = await prisma.$transaction(async (tx) => {
-      // a) Buscar Produto e validar
-      const product = await tx.product.findUnique({
-        where: { id: productId },
-        include: { shop: { include: { owner: true } } }
-      });
+        // CORREÇÃO: Usando 'product'
+        const product = await tx.product.findUnique({
+            where: { id: productId },
+            include: { shop: { include: { owner: true } } }
+        });
 
-      if (!product) throw new Error("Produto não encontrado");
-      if (product.stock <= 0 || product.isSold) throw new Error("Produto esgotado");
-      if (product.currency !== 'CREDITS') throw new Error("Este produto não aceita créditos");
-      if (product.shop.ownerId === buyerId) throw new Error("Você não pode comprar seu próprio produto");
+        if (!product) throw new Error("Produto não encontrado");
+        if (product.stock <= 0) throw new Error("Produto esgotado");
+        if (product.currency !== 'CREDITS') throw new Error("Apenas produtos em créditos podem ser comprados diretamente");
 
-      const price = Number(product.price);
-
-      // b) Buscar Comprador e validar saldo
-      const buyer = await tx.user.findUnique({ where: { id: buyerId } });
-      if (!buyer) throw new Error("Comprador não encontrado");
-      
-      if ((buyer.credits || 0) < price) {
-        throw new Error("Saldo insuficiente"); // Erro específico para o front tratar
-      }
-
-      // c) Executar Movimentações
-      // 1. Debitar do Comprador
-      await tx.user.update({
-        where: { id: buyerId },
-        data: { credits: { decrement: price } }
-      });
-
-      // 2. Creditar ao Vendedor (Dono da Loja)
-      await tx.user.update({
-        where: { id: product.shop.ownerId },
-        data: { credits: { increment: price } }
-      });
-
-      // 3. Atualizar Estoque do Produto
-      const newStock = product.stock - 1;
-      const updatedProduct = await tx.product.update({
-        where: { id: productId },
-        data: {
-          stock: newStock,
-          isSold: newStock === 0, // Se zerar, marca como vendido
+        const buyer = await tx.user.findUnique({ where: { id: buyerId } });
+        if (!buyer || (buyer.credits || 0) < Number(product.price)) {
+            throw new Error("Saldo insuficiente");
         }
-      });
 
-      // 4. (Opcional) Criar registro de transação/Chat aqui futuramente
+        // 1. Desconta do comprador
+        await tx.user.update({
+            where: { id: buyerId },
+            data: { credits: { decrement: Number(product.price) } }
+        });
 
-      return updatedProduct;
+        // 2. Adiciona ao vendedor
+        await tx.user.update({
+            where: { id: product.shop.ownerId },
+            data: { credits: { increment: Number(product.price) } }
+        });
+
+        // 3. Atualiza estoque (CORREÇÃO: 'product')
+        await tx.product.update({
+            where: { id: productId },
+            data: { stock: { decrement: 1 } }
+        });
+
+        return { product, buyer };
     });
 
-    return NextResponse.json({ success: true, product: result });
+    // --- NOTIFICAÇÃO (Gatilho) ---
+    // Notifica o dono da loja
+    await prisma.notification.create({
+        data: {
+            userId: result.product.shop.ownerId,
+            title: "Produto Vendido! 🎉",
+            message: `${result.buyer?.name || 'Alguém'} comprou "${result.product.title}". Você recebeu ${result.product.price} créditos.`,
+            type: "ORDER",
+            link: "/(app)/dashboard"
+        }
+    });
+    // ----------------------------
+
+    return NextResponse.json({ success: true });
 
   } catch (error: any) {
-    console.error("Erro na compra:", error.message);
-    const status = error.message === "Saldo insuficiente" ? 402 : 400; // 402 Payment Required
-    return NextResponse.json({ error: error.message || "Erro ao processar compra" }, { status });
+    return NextResponse.json({ error: error.message || "Erro na compra" }, { status: 400 });
   }
 }

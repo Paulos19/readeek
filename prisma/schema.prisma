@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -37,29 +35,33 @@ enum UserRole {
   ADMIN
 }
 
-// NOVO ENUM PARA CARGOS NA COMUNIDADE
 enum CommunityRole {
   OWNER
   HONORARY_MEMBER
   MEMBER
 }
 
+enum Currency {
+  BRL
+  CREDITS
+  TRADE
+}
+
 // -- MODELS --
 
 model User {
-  id                   String            @id @default(cuid())
+  id                   String    @id @default(cuid())
   name                 String?
-  email                String            @unique
+  email                String    @unique
   password             String
   emailVerified        DateTime?
   image                String?
-  role                 UserRole          @default(USER)
-  about                String?           @db.Text
+  role                 UserRole  @default(USER)
+  about                String?   @db.Text
   profileVisibility    ProfileVisibility @default(PUBLIC)
-  credits              Int               @default(50)
+  credits              Int       @default(50)
   displayedInsigniaIds String[]
 
-  // Relações existentes
   accounts         Account[]
   sessions         Session[]
   books            Book[]
@@ -67,32 +69,51 @@ model User {
   comments         Comment[]
   reactions        Reaction[]
   Highlight        Highlight[]
-  sentRequests     BookRequest[]      @relation("SentRequests")
-  receivedRequests BookRequest[]      @relation("ReceivedRequests")
+  sentRequests     BookRequest[] @relation("SentRequests")
+  receivedRequests BookRequest[] @relation("ReceivedRequests")
   insignias        InsigniasOnUsers[]
-  following        Follows[]          @relation("follower")
-  followers        Follows[]          @relation("following")
+  following        Follows[]     @relation("follower")
+  followers        Follows[]     @relation("following")
 
-  // Relações da Comunidade
-  ownedCommunities       Community[]           @relation("OwnedCommunities")
-  communityMemberships   CommunityMember[]     @relation("CommunityMemberships")
+  ownedCommunities       Community[]       @relation("OwnedCommunities")
+  communityMemberships   CommunityMember[] @relation("CommunityMemberships")
   uploadedCommunityFiles CommunityFile[]
-  communityPosts         CommunityPost[]       @relation("CommunityPosts")
+  communityPosts         CommunityPost[]   @relation("CommunityPosts")
   communityComments      CommunityComment[]
   communityReactions     CommunityReaction[]
   communityPostReports   CommunityPostReport[]
   bannedFrom             BannedFromCommunity[]
-  wallpaperUrl           String?
-  myBubbleColor          String                @default("#059669") // Emerald-600
-  otherBubbleColor       String                @default("#27272a") // Zinc-800
+  
+  wallpaperUrl     String?
+  myBubbleColor    String    @default("#059669")
+  otherBubbleColor String    @default("#27272a")
 
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  
   shop           Shop?
+  
   conversation   Conversation?  @relation(fields: [conversationId], references: [id])
   conversationId String?
   messages       Message[]
+  
   notifications  Notification[]
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title     String
+  message   String
+  type      String   @default("INFO")
+  read      Boolean  @default(false)
+  link      String?
+  
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Follows {
@@ -105,20 +126,20 @@ model Follows {
 }
 
 model Book {
-  id              String        @id @default(cuid())
+  id              String   @id @default(cuid())
   title           String
   author          String?
   coverUrl        String?
   filePath        String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  progress        Int           @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  progress        Int      @default(0)
   currentLocation String?
-  description     String?       @db.Text
-  sharable        Boolean       @default(false)
-  downloadsCount  Int           @default(0)
+  description     String?  @db.Text
+  sharable        Boolean  @default(false)
+  downloadsCount  Int      @default(0)
   userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   posts           Post[]
   Highlight       Highlight[]
   requests        BookRequest[] @relation("RequestedBook")
@@ -139,11 +160,11 @@ model BookRequest {
 }
 
 model Insignia {
-  id          String             @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String
   imageUrl    String
-  type        InsigniaType       @default(FREE)
+  type        InsigniaType @default(FREE)
   price       Int?
   users       InsigniasOnUsers[]
 }
@@ -159,33 +180,33 @@ model InsigniasOnUsers {
 }
 
 model Post {
-  id             String     @id @default(cuid())
-  content        String     @db.Text
-  type           PostType   @default(POST)
-  imageUrl       String? // <--- ADICIONE ESTA LINHA
+  id             String   @id @default(cuid())
+  content        String   @db.Text
+  type           PostType @default(POST)
+  imageUrl       String?
   progressAtPost Int?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
   userId         String
-  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookId         String?
-  book           Book?      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  book           Book?    @relation(fields: [bookId], references: [id], onDelete: Cascade)
   comments       Comment[]
   reactions      Reaction[]
 }
 
 model Comment {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   text      String
-  createdAt DateTime   @default(now())
+  createdAt DateTime @default(now())
   userId    String
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   postId    String
-  post      Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   reactions Reaction[]
   parentId  String?
-  parent    Comment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  replies   Comment[]  @relation("CommentReplies")
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies   Comment[] @relation("CommentReplies")
 }
 
 model Reaction {
@@ -250,7 +271,7 @@ model VerificationToken {
 // -- COMMUNITY MODELS --
 
 model Community {
-  id          String                @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
   description String?
   type        String
@@ -258,13 +279,13 @@ model Community {
   password    String?
   coverUrl    String?
   ownerId     String
-  owner       User                  @relation("OwnedCommunities", fields: [ownerId], references: [id], onDelete: Restrict)
+  owner       User     @relation("OwnedCommunities", fields: [ownerId], references: [id], onDelete: Restrict)
   members     CommunityMember[]
   files       CommunityFile[]
   posts       CommunityPost[]
   bannedUsers BannedFromCommunity[]
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model CommunityMember {
@@ -305,47 +326,42 @@ model CommunityFile {
 }
 
 model CommunityPost {
-  id          String                @id @default(cuid())
+  id          String    @id @default(cuid())
   content     String
   authorId    String
-  author      User                  @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
+  author      User      @relation("CommunityPosts", fields: [authorId], references: [id], onDelete: Cascade)
   communityId String
-  community   Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
   comments    CommunityComment[]
   reactions   CommunityReaction[]
   reports     CommunityPostReport[]
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model CommunityComment {
-  id                 String              @id @default(cuid())
-  content            String
-  authorId           String
-  author             User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  postId             String
-  post               CommunityPost       @relation(fields: [postId], references: [id], onDelete: Cascade)
-  createdAt          DateTime            @default(now())
-  parentId           String?
-  parent             CommunityComment?   @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  replies            CommunityComment[]  @relation("CommentReplies")
+  id          String    @id @default(cuid())
+  content     String
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId      String
+  post        CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  parentId    String?
+  parent      CommunityComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  replies     CommunityComment[] @relation("CommentReplies")
   communityReactions CommunityReaction[]
 }
 
 model CommunityReaction {
-  id     String @id @default(cuid())
-  emoji  String
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Relacionamento com Post (Existente, tornar opcional se for reação de comentário)
-  postId String?
-  post   CommunityPost? @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  // NOVO: Relacionamento com Comentário
+  id        String @id @default(cuid())
+  emoji     String
+  userId    String
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String?
+  post      CommunityPost? @relation(fields: [postId], references: [id], onDelete: Cascade)
   commentId String?
   comment   CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
   createdAt DateTime @default(now())
 }
 
@@ -364,7 +380,7 @@ model Shop {
   id          String   @id @default(cuid())
   name        String
   description String?
-  imageUrl    String? // Logo da loja
+  imageUrl    String? 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -378,13 +394,11 @@ model Product {
   id          String   @id @default(cuid())
   title       String
   description String
-  price       Decimal // Valor (pode ser em R$ ou Créditos)
-  currency    Currency @default(BRL) // BRL ou CREDITS
+  price       Decimal 
+  currency    Currency @default(BRL) 
   stock       Int      @default(1)
-  condition   String   @default("NEW") // NOVO, USADO
-  address     String // Endereço obrigatório de onde está o produto
-
-  // Categorias ou Tags podem ser adicionadas depois
+  condition   String   @default("NEW") 
+  address     String 
 
   shopId String
   shop   Shop   @relation(fields: [shopId], references: [id])
@@ -404,64 +418,39 @@ model ProductImage {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
-enum Currency {
-  BRL
-  CREDITS
-  TRADE // Para trocas
-}
-
 model Conversation {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt // Útil para ordenar pela última mensagem
+  updatedAt DateTime @updatedAt 
 
-  // Contexto da negociação (Opcional, mas bom para Marketplace)
   productId String?
   product   Product? @relation(fields: [productId], references: [id])
 
-  // Participantes (Muitos para Muitos implícito)
   participants User[]
-
-  messages Message[]
+  messages     Message[]
 }
 
 model Message {
   id        String   @id @default(cuid())
-  content   String? // Agora opcional, pois pode ser só imagem
-  imageUrl  String? // URL da imagem se houver
+  content   String? 
+  imageUrl  String? 
   audioUrl  String?
-  type      String   @default("TEXT") // "TEXT" | "IMAGE"
+  type      String   @default("TEXT") 
   createdAt DateTime @default(now())
 
   senderId  String
-  sender    User      @relation(fields: [senderId], references: [id])
+  sender    User     @relation(fields: [senderId], references: [id])
   replyToId String?
-  replyTo   Message?  @relation("ReplyRelation", fields: [replyToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replyTo   Message? @relation("ReplyRelation", fields: [replyToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   replies   Message[] @relation("ReplyRelation")
 
-  fileUrl  String?
-  fileName String?
-  fileSize Int?
+  fileUrl   String?
+  fileName  String?
+  fileSize  Int?
 
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   deletedForIds  String[]     @default([])
 
   read Boolean @default(false)
-}
-
-model Notification {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  title   String
-  message String
-  type    String  @default("INFO") // "SALE", "MESSAGE", "SYSTEM", "ORDER"
-  read    Boolean @default(false)
-  link    String? // Opcional: Link para redirecionar (ex: /chat/123)
-
-  createdAt DateTime @default(now())
-
-  @@index([userId])
 }
