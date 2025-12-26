@@ -1,4 +1,3 @@
-// app/api/mobile/progress/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
@@ -19,32 +18,32 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
     }
 
-    // Busca o estado atual para comparar
     const currentBook = await prisma.book.findUnique({
         where: { id: bookId },
-        select: { progress: true }
+        select: { progress: true, currentLocation: true }
     });
 
-    // LÓGICA DE PROTEÇÃO:
-    // Se o novo progresso for 0 mas o livro já estava avançado (>5%),
-    // assumimos que é um erro de cálculo do mobile e salvamos apenas o CFI (currentLocation),
-    // mantendo o progresso visual antigo para não assustar o usuário.
-    let newProgress = Math.floor(percentage * 100);
+    // Usa Round para melhor precisão visual (ex: 99.6% vira 100%)
+    let newProgress = Math.round(percentage * 100);
     
-    if (newProgress === 0 && (currentBook?.progress || 0) > 5) {
-        console.log(`[Sync War] Ignorando progresso 0% para livro avançado (${currentBook?.progress}%). Salvando apenas localização.`);
+    // LÓGICA DE PROTEÇÃO REFINADA:
+    // Só ignora o 0 se o CFI também for nulo/inválido ou igual ao anterior.
+    // Se o CFI mudou drasticamente (o usuário voltou para a capa), aceitamos o 0.
+    if (newProgress === 0 && (currentBook?.progress || 0) > 10 && cfi === currentBook?.currentLocation) {
+        console.log(`[Sync War] Ignorando 0% pois o CFI é idêntico ao anterior.`);
         newProgress = currentBook?.progress || 0;
     }
 
     const updatedBook = await prisma.book.update({
       where: { 
         id: bookId,
+        // Garante que só atualiza se o livro pertencer ao usuário (ou for uma cópia dele)
         userId: decoded.userId 
       },
       data: {
         currentLocation: cfi, 
         progress: newProgress,
-        updatedAt: new Date() // Força atualização do timestamp para o sync reverso pegar
+        updatedAt: new Date()
       },
     });
 
