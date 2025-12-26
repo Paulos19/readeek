@@ -82,6 +82,9 @@ model User {
   communityReactions     CommunityReaction[]
   communityPostReports   CommunityPostReport[]
   bannedFrom             BannedFromCommunity[]
+  wallpaperUrl     String?
+  myBubbleColor    String  @default("#059669") // Emerald-600
+  otherBubbleColor String  @default("#27272a") // Zinc-800
 
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
