@@ -23,17 +23,17 @@ export async function PATCH(
 ) {
   const params = await props.params;
   try {
-    // Agora recebemos 'theme' também
-    const { title, content, wallpaperUrl, textColor, theme } = await req.json();
+    const body = await req.json();
     
-    // Filtramos undefined para não sobrescrever com nulo acidentalmente, 
-    // embora o Prisma ignore undefined por padrão, é bom ser explícito.
+    // Filtra apenas o que foi enviado (undefined vs null vs valor)
+    // Isso impede que um auto-save de texto apague o wallpaperUrl se ele não for enviado
     const dataToUpdate: any = { updatedAt: new Date() };
-    if (title !== undefined) dataToUpdate.title = title;
-    if (content !== undefined) dataToUpdate.content = content;
-    if (wallpaperUrl !== undefined) dataToUpdate.wallpaperUrl = wallpaperUrl;
-    if (textColor !== undefined) dataToUpdate.textColor = textColor;
-    if (theme !== undefined) dataToUpdate.theme = theme;
+    
+    if (body.title !== undefined) dataToUpdate.title = body.title;
+    if (body.content !== undefined) dataToUpdate.content = body.content;
+    if (body.wallpaperUrl !== undefined) dataToUpdate.wallpaperUrl = body.wallpaperUrl;
+    if (body.textColor !== undefined) dataToUpdate.textColor = body.textColor;
+    if (body.theme !== undefined) dataToUpdate.theme = body.theme;
 
     const chapter = await prisma.draftChapter.update({
       where: { id: params.id },
@@ -42,7 +42,7 @@ export async function PATCH(
 
     return NextResponse.json(chapter);
   } catch (error) {
-    console.error(error);
+    console.error("Erro PATCH chapter:", error);
     return NextResponse.json({ error: "Erro ao atualizar" }, { status: 500 });
   }
 }
