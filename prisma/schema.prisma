@@ -49,6 +49,7 @@ model User {
   sessions               Session[]
   shop                   Shop?
   conversation           Conversation?         @relation(fields: [conversationId], references: [id])
+  bookDrafts             BookDraft[]
 }
 
 model Notification {
@@ -392,6 +393,63 @@ model Message {
   replyTo        Message?     @relation("ReplyRelation", fields: [replyToId], references: [id], onUpdate: NoAction)
   replies        Message[]    @relation("ReplyRelation")
   sender         User         @relation(fields: [senderId], references: [id])
+}
+
+model BookDraft {
+  id        String      @id @default(cuid())
+  title     String
+  synopsis  String?
+  coverUrl  String?
+  genre     String?
+  status    DraftStatus @default(IN_PROGRESS)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  chapters   DraftChapter[]
+  characters DraftCharacter[]
+  lore       DraftLore[]
+}
+
+model DraftChapter {
+  id        String   @id @default(cuid())
+  title     String
+  content   String // Armazena o texto (pode ser HTML ou Markdown)
+  order     Int // Ordem do capítulo (1, 2, 3...)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  draftId String
+  draft   BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model DraftCharacter {
+  id          String  @id @default(cuid())
+  name        String
+  role        String? // Ex: Protagonista, Antagonista
+  description String?
+  imageUrl    String? // Avatar do personagem
+
+  draftId String
+  draft   BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+model DraftLore {
+  id       String @id @default(cuid())
+  title    String // Ex: "Reino de Aethelgard", "Sistema de Magia"
+  category String // Ex: Localização, História, Magia
+  content  String
+
+  draftId String
+  draft   BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+}
+
+enum DraftStatus {
+  IN_PROGRESS
+  COMPLETED
+  PUBLISHED
 }
 
 enum PostType {
