@@ -1,36 +1,66 @@
-import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { NextRequest, NextResponse } from "next/server";
 
-// Inicialize com sua chave (garanta que está no .env)
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+// Certifique-se de ter GOOGLE_API_KEY no seu .env
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || "");
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, language = "português" } = await req.json();
+    const { text } = await req.json();
 
-    if (!text) return NextResponse.json({ error: "Texto vazio" }, { status: 400 });
+    if (!text || typeof text !== 'string') {
+      return NextResponse.json({ error: "Texto inválido" }, { status: 400 });
+    }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // Prompt otimizado para correção mantendo o estilo
     const prompt = `
-  Analise: "${text}".
-  Se for um texto longo, corrija a gramática.
-  Se for UMA ÚNICA PALAVRA, verifique a ortografia e retorne 3 sugestões de correção ou sinônimos em um array "suggestions".
-  Saída JSON: { corrected: string, suggestions?: string[], explanation: string }
-`;
+      Você é um assistente de escrita e editor gramatical profissional.
+      Tarefa: Analisar o texto em português fornecido abaixo.
+
+      Se o texto contiver erros ortográficos, gramaticais ou de pontuação:
+      - Retorne a versão corrigida em "corrected".
+      - Explique brevemente o erro em "explanation".
+      
+      Se o texto for uma única palavra (para dicionário):
+      - Retorne a palavra correta em "corrected".
+      - Forneça 3 sinônimos ou grafias corretas alternativas em "suggestions".
+
+      Se o texto estiver perfeito:
+      - Retorne o mesmo texto em "corrected".
+      - Deixe "explanation" como null.
+
+      Entrada: "${text}"
+
+      Responda APENAS com este JSON válido (sem blocos de código):
+      {
+        "corrected": "string",
+        "explanation": "string ou null",
+        "suggestions": ["string"]
+      }
+    `;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    
-    // Limpeza para garantir que venha apenas JSON válido
-    let jsonString = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
-    const data = JSON.parse(jsonString);
+    let textResponse = response.text();
 
-    return NextResponse.json(data);
+    // Limpeza para garantir JSON puro
+    textResponse = textResponse.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    try {
+      const json = JSON.parse(textResponse);
+      return NextResponse.json(json);
+    } catch (e) {
+      console.error("Erro parse JSON Gemini:", textResponse);
+      // Fallback gracioso
+      return NextResponse.json({ 
+        corrected: text, 
+        explanation: "Não foi possível processar a resposta da IA." 
+      });
+    }
 
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return NextResponse.json({ error: "Erro ao processar IA" }, { status: 500 });
+    console.error("Erro API IA:", error);
+    return NextResponse.json({ error: "Falha no serviço de IA" }, { status: 500 });
   }
 }
