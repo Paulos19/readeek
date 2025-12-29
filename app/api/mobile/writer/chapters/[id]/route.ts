@@ -24,29 +24,26 @@ export async function GET(
 // PATCH: Salvar alterações (Título e Conteúdo - Auto-Save)
 export async function PATCH(
   req: NextRequest,
-  props: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const params = await props.params;
   try {
-    const body = await req.json();
-    const { title, content } = body;
-
-    const updatedChapter = await prisma.draftChapter.update({
+    const { title, content, wallpaperUrl, textColor } = await req.json();
+    
+    const chapter = await prisma.draftChapter.update({
       where: { id: params.id },
       data: {
         title,
         content,
-        updatedAt: new Date() // Força atualização do timestamp para ordenação
-      }
+        wallpaperUrl, // Salva a URL persistente
+        textColor,    // Salva a preferência de cor
+      },
     });
 
-    return NextResponse.json(updatedChapter);
+    return NextResponse.json(chapter);
   } catch (error) {
-    console.error("Erro ao salvar capítulo:", error);
-    return NextResponse.json({ error: "Falha ao salvar" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao atualizar" }, { status: 500 });
   }
 }
-
 // DELETE: Excluir um capítulo específico
 export async function DELETE(
   req: NextRequest,

@@ -414,12 +414,14 @@ model BookDraft {
 }
 
 model DraftChapter {
-  id        String   @id @default(cuid())
-  title     String
-  content   String // Armazena o texto (pode ser HTML ou Markdown)
-  order     Int // Ordem do capítulo (1, 2, 3...)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  title        String
+  content      String // Armazena o texto (pode ser HTML ou Markdown)
+  order        Int // Ordem do capítulo (1, 2, 3...)
+  wallpaperUrl String? // URL do Vercel Blob
+  textColor    String? // Hex code da cor
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   draftId String
   draft   BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
