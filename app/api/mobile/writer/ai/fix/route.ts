@@ -14,19 +14,11 @@ export async function POST(req: NextRequest) {
 
     // Prompt otimizado para correção mantendo o estilo
     const prompt = `
-      Você é um editor de livros experiente e revisor gramatical.
-      Analise o seguinte texto em ${language}.
-      Identifique erros gramaticais, ortográficos ou de pontuação.
-      
-      Retorne APENAS um objeto JSON (sem markdown, sem crase) no seguinte formato:
-      {
-        "corrected": "O texto corrigido aqui",
-        "hasErrors": true/false,
-        "explanation": "Uma explicação breve e educada do que foi corrigido (máximo 1 frase)."
-      }
-
-      Texto para analisar: "${text}"
-    `;
+  Analise: "${text}".
+  Se for um texto longo, corrija a gramática.
+  Se for UMA ÚNICA PALAVRA, verifique a ortografia e retorne 3 sugestões de correção ou sinônimos em um array "suggestions".
+  Saída JSON: { corrected: string, suggestions?: string[], explanation: string }
+`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
