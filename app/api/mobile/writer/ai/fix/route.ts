@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Texto inválido" }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Sugestão: Use 1.5 se o 2.5 falhar
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Sugestão: Use 1.5 se o 2.5 falhar
 
     let prompt = "";
 
