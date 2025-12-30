@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
 
     if (!text) return NextResponse.json({ error: "Texto inválido" }, { status: 400 });
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
       Você é um dicionário e professor de literatura conciso.
