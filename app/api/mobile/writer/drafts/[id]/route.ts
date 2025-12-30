@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
-// GET: Obter detalhes (Já existia)
+// GET: Obter detalhes
 export async function GET(
   req: NextRequest,
   props: { params: Promise<{ id: string }> }
@@ -17,7 +17,7 @@ export async function GET(
       include: {
         chapters: {
           orderBy: { order: 'asc' },
-          select: { id: true, title: true, order: true, updatedAt: true }
+          select: { id: true, title: true, order: true, updatedAt: true, content: true } // content necessário para contagem de palavras
         },
         characters: true,
         lore: true,
@@ -32,8 +32,8 @@ export async function GET(
   }
 }
 
-// --- ADICIONE ESTE BLOCO PARA CORRIGIR O ERRO 404 ---
-export async function DELETE(
+// PATCH: Atualizar Rascunho (NOVO)
+export async function PATCH(
   req: NextRequest,
   props: { params: Promise<{ id: string }> }
 ) {
@@ -51,23 +51,59 @@ export async function DELETE(
 
   try {
     const draftId = params.id;
+    const body = await req.json();
 
-    // 2. Verifica se o rascunho pertence ao usuário antes de deletar
+    // Verifica propriedade
+    const draft = await prisma.bookDraft.findUnique({ where: { id: draftId } });
+    if (!draft || draft.userId !== userId) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+
+    // Atualiza apenas campos permitidos
+    const dataToUpdate: any = { updatedAt: new Date() };
+    if (body.title) dataToUpdate.title = body.title;
+    if (body.genre) dataToUpdate.genre = body.genre;
+    if (body.coverUrl !== undefined) dataToUpdate.coverUrl = body.coverUrl;
+
+    const updatedDraft = await prisma.bookDraft.update({
+      where: { id: draftId },
+      data: dataToUpdate
+    });
+
+    return NextResponse.json(updatedDraft);
+
+  } catch (error) {
+    console.error("Erro PATCH draft:", error);
+    return NextResponse.json({ error: "Erro ao atualizar" }, { status: 500 });
+  }
+}
+
+// DELETE: Excluir Rascunho
+export async function DELETE(
+  req: NextRequest,
+  props: { params: Promise<{ id: string }> }
+) {
+  const params = await props.params;
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let userId = "";
+  try {
+    userId = (jwt.verify(authHeader.split(" ")[1], JWT_SECRET) as any).userId;
+  } catch {
+    return NextResponse.json({ status: 401 });
+  }
+
+  try {
+    const draftId = params.id;
     const draft = await prisma.bookDraft.findUnique({ where: { id: draftId } });
 
     if (!draft) return NextResponse.json({ error: "Rascunho não encontrado" }, { status: 404 });
     if (draft.userId !== userId) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
-    // 3. Deleta (Cascade vai apagar capítulos, lore e personagens automaticamente se configurado no schema)
-    // Se não tiver cascade no banco, o Prisma lida com isso se configurado no schema.prisma
-    await prisma.bookDraft.delete({
-      where: { id: draftId }
-    });
+    await prisma.bookDraft.delete({ where: { id: draftId } });
 
     return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error("Erro ao deletar rascunho:", error);
     return NextResponse.json({ error: "Erro interno ao deletar" }, { status: 500 });
   }
 }
