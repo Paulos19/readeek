@@ -3,17 +3,18 @@ import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { put } from "@vercel/blob";
 import JSZip from "jszip";
-import * as cheerio from "cheerio"; // Troca JSDOM por Cheerio
+import * as cheerio from "cheerio";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 const COST_EXPORT_BOOK = 25; 
 
 /**
- * Limpa o HTML do editor usando Cheerio (Mais leve e compatível com Next.js)
+ * Limpa o HTML do editor usando Cheerio e garante conformidade estrita com XHTML 
+ * (Evita o erro de mismatch tag no leitor)
  */
 function processHtmlForEpub(content: string) {
-  // Carrega o HTML (não cria um DOM completo, apenas um parser de string)
-  const $ = cheerio.load(content, null, false);
+  // O segredo está no xmlMode: true. Ele garante que tags como <br> virem <br/>
+  const $ = cheerio.load(content, { xmlMode: true }, false);
 
   // 1. Processar Containers de Imagem (Lógica Canva)
   $('.resize-container').each((_, el) => {
@@ -25,7 +26,7 @@ function processHtmlForEpub(content: string) {
       return;
     }
 
-    // No Cheerio, pegamos os estilos da string 'style'
+    // Captura as dimensões injetadas pelo touch no mobile
     const styleAttr = container.attr('style') || '';
     const widthMatch = styleAttr.match(/width:\s*([^;]+)/);
     const heightMatch = styleAttr.match(/height:\s*([^;]+)/);
@@ -33,30 +34,30 @@ function processHtmlForEpub(content: string) {
     const width = widthMatch ? widthMatch[1] : '100%';
     const height = heightMatch ? heightMatch[1] : 'auto';
 
-    // Limpa elementos de interface (alças, overlays, botões de mover)
+    // Limpa elementos de interface do editor que não devem ir para o livro
     container.find('.handle, .handle-move, .resize-overlay').remove();
 
-    // Converte o container em um bloco centrado compatível com EPUB
+    // Aplica estilos inline compatíveis com e-readers
     container.attr('style', `display: block; margin: 1.5em auto; width: ${width}; height: ${height}; text-align: center; page-break-inside: avoid;`);
 
-    // Ajusta a imagem
+    // Ajusta a imagem para preencher o container distorcendo conforme o design (object-fit: fill)
     img.attr('style', `width: 100%; height: 100%; display: block; object-fit: fill; border-radius: 4px;`);
 
-    // Fallback de atributos
+    // Atributos de fallback (leitura legada)
     if (width.includes('px')) img.attr('width', width.replace('px', '').trim());
     if (height.includes('px')) img.attr('height', height.replace('px', '').trim());
     
     container.removeAttr('contenteditable');
   });
 
-  // 2. Limpar spans de erro ou highlight
+  // 2. Limpar spans de erro ortográfico ou highlight de busca
   $('.misspelled, .search-highlight').each((_, el) => {
     const $el = $(el);
     $el.replaceWith($el.text());
   });
 
-  // Retorna apenas o conteúdo do body
-  return $.html();
+  // Retorna o XML processado (garante fechamento de todas as tags)
+  return $.xml();
 }
 
 export async function POST(
@@ -78,13 +79,20 @@ export async function POST(
   try {
     const draftId = params.id;
 
+    // 1. Transaction: Verifica Saldo + Busca Dados
     const { draft } = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: userId } });
-      if (!user || user.credits < COST_EXPORT_BOOK) throw new Error("INSUFFICIENT_FUNDS");
+      
+      if (!user || user.credits < COST_EXPORT_BOOK) {
+        throw new Error("INSUFFICIENT_FUNDS");
+      }
 
       const d = await tx.bookDraft.findUnique({
         where: { id: draftId },
-        include: { chapters: { orderBy: { order: 'asc' } }, user: true }
+        include: { 
+          chapters: { orderBy: { order: 'asc' } },
+          user: true
+        }
       });
 
       if (!d) throw new Error("NOT_FOUND");
@@ -94,9 +102,11 @@ export async function POST(
       return { user, draft: d };
     });
 
+    // 2. Preparação da Estrutura EPUB
     const zip = new JSZip();
     zip.file("mimetype", "application/epub+zip", { compression: "STORE" });
 
+    // Container XML
     zip.folder("META-INF")?.file("container.xml", `<?xml version="1.0"?>
       <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
         <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
@@ -104,6 +114,7 @@ export async function POST(
 
     const oebps = zip.folder("OEBPS");
 
+    // Lógica do Índice (TOC XHTML e NCX)
     let tocHtmlContent = `<?xml version="1.0" encoding="utf-8"?>
     <!DOCTYPE html>
     <html xmlns="http://www.w3.org/1999/xhtml">
@@ -114,30 +125,33 @@ export async function POST(
     let spineRefs = "";
     let tocNavPoints = "";
 
+    // Loop dos Capítulos
     draft.chapters.forEach((chapter, index) => {
       const filename = `chapter_${index + 1}.xhtml`;
       const chapterId = `chap${index + 1}`;
       
       tocHtmlContent += `<li><a href="${filename}">${chapter.title}</a></li>`;
 
-      // PROCESSAMENTO COM CHEERIO
+      // PROCESSAMENTO DE XHTML COM CHEERIO
       const processedBody = processHtmlForEpub(chapter.content || "");
 
       const htmlContent = `<?xml version="1.0" encoding="utf-8"?>
         <!DOCTYPE html>
-        <html xmlns="http://www.w3.org/1999/xhtml">
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
         <head>
           <title>${chapter.title}</title>
           <style>
             body { font-family: serif; line-height: 1.6; padding: 5%; color: #1a1a1a; }
             h2 { color: #333; text-align: center; margin-bottom: 2em; }
-            p { margin-bottom: 1em; text-align: justify; }
-            img { max-width: 100%; height: auto; }
+            p { margin-bottom: 1em; text-align: justify; min-height: 1em; }
+            img { max-width: 100%; height: auto; border: 0; }
           </style>
         </head>
         <body>
-          <h2>${chapter.title}</h2>
-          ${processedBody}
+          <section epub:type="chapter">
+            <h2>${chapter.title}</h2>
+            ${processedBody}
+          </section>
         </body>
         </html>`;
 
@@ -158,6 +172,7 @@ export async function POST(
     manifestItems += `<item id="toc_page" href="toc.xhtml" media-type="application/xhtml+xml"/>\n`;
     spineRefs = `<itemref idref="toc_page"/>\n` + spineRefs;
 
+    // Content.opf (Metadados v2.0 para compatibilidade máxima)
     const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
       <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId" version="2.0">
         <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
@@ -186,6 +201,7 @@ export async function POST(
 
     oebps?.file("toc.ncx", tocNcx);
 
+    // 3. Gerar Binário e Upload para Vercel Blob
     const epubContent = await zip.generateAsync({ type: "nodebuffer" });
     const fileNameSafe = draft.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const fileKey = `published/${fileNameSafe}_${Date.now()}.epub`;
@@ -195,6 +211,7 @@ export async function POST(
       contentType: 'application/epub+zip'
     });
 
+    // 4. Salvar no Banco e Cobrar Créditos
     const resultBook = await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: userId },
