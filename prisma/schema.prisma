@@ -421,7 +421,8 @@ model DraftChapter {
   order        Int
   wallpaperUrl String?
   textColor    String?
-  theme        String? @default("dark") // <--- ADICIONE ISSO
+  theme        String? @default("dark")
+  fontFamily   String? @default("Merriweather")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

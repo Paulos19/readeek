@@ -25,15 +25,17 @@ export async function PATCH(
   try {
     const body = await req.json();
     
-    // Filtra apenas o que foi enviado (undefined vs null vs valor)
-    // Isso impede que um auto-save de texto apague o wallpaperUrl se ele não for enviado
     const dataToUpdate: any = { updatedAt: new Date() };
     
+    // ... outros campos existentes
     if (body.title !== undefined) dataToUpdate.title = body.title;
     if (body.content !== undefined) dataToUpdate.content = body.content;
     if (body.wallpaperUrl !== undefined) dataToUpdate.wallpaperUrl = body.wallpaperUrl;
     if (body.textColor !== undefined) dataToUpdate.textColor = body.textColor;
     if (body.theme !== undefined) dataToUpdate.theme = body.theme;
+
+    // NOVO CAMPO:
+    if (body.fontFamily !== undefined) dataToUpdate.fontFamily = body.fontFamily;
 
     const chapter = await prisma.draftChapter.update({
       where: { id: params.id },
