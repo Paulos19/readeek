@@ -2,12 +2,12 @@ import nodemailer from 'nodemailer';
 
 // Suas credenciais (Recomendado colocar no .env em produção)
 const SMTP_CONFIG = {
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // true para 465, false para outras portas
+  host: process.env.EMAIL_SERVER_HOST,
+  port: parseInt(process.env.EMAIL_SERVER_PORT || "465"),
+  secure: process.env.EMAIL_SERVER_SECURE === "true", // true para 465, false para outras portas
   auth: {
-    user: "paulohenrique.012araujo@gmail.com",
-    pass: "vihr htgg eqdh ptjg",
+    user: process.env.EMAIL_SERVER_USER,
+    pass: process.env.EMAIL_SERVER_PASSWORD,
   },
 };
 
