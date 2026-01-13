@@ -19,6 +19,8 @@ model User {
   profileVisibility      ProfileVisibility     @default(PUBLIC)
   credits                Int                   @default(50)
   displayedInsigniaIds   String[]
+  resetCode              String? // O código de 6 dígitos
+  resetCodeExpires       DateTime?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
   conversationId         String?

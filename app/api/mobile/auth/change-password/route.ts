@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+// Novos imports
+import { sendMail } from "@/lib/mail";
+import { getSecurityAlertTemplate } from "@/lib/emails/transactional-templates";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
@@ -24,19 +27,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
     }
 
-    // Verifica senha atual
     const isValid = await bcrypt.compare(currentPassword, user.password);
     if (!isValid) {
       return NextResponse.json({ error: "Senha atual incorreta" }, { status: 403 });
     }
 
-    // Hash da nova senha
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await prisma.user.update({
       where: { id: user.id },
       data: { password: hashedPassword }
     });
+
+    // --- EMAIL DE SEGURANÇA ---
+    try {
+        await sendMail({
+            to: user.email,
+            subject: "Sua senha foi alterada - Readeek",
+            html: getSecurityAlertTemplate(user.name || "Usuário")
+        });
+    } catch (e) { console.error("Erro email senha:", e); }
+    // -------------------------
 
     return NextResponse.json({ success: true });
   } catch (error) {

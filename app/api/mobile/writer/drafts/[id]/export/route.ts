@@ -5,6 +5,10 @@ import { put } from "@vercel/blob";
 import JSZip from "jszip";
 import * as cheerio from "cheerio";
 
+// Importações do sistema de Email
+import { sendMail } from "@/lib/mail";
+import { getBookPublishedTemplate } from "@/lib/emails/transactional-templates";
+
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 const COST_EXPORT_BOOK = 25; 
 
@@ -80,6 +84,7 @@ export async function POST(
     const draftId = params.id;
 
     // 1. Transaction: Verifica Saldo + Busca Dados
+    // Recuperamos 'draft' aqui, que contém os dados do usuário (email/nome) necessários para o e-mail
     const { draft } = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: userId } });
       
@@ -91,7 +96,7 @@ export async function POST(
         where: { id: draftId },
         include: { 
           chapters: { orderBy: { order: 'asc' } },
-          user: true
+          user: true // Importante: Traz o email do autor
         }
       });
 
@@ -246,6 +251,25 @@ export async function POST(
         });
       }
     });
+
+    // --- 5. EMAIL DE PUBLICAÇÃO (GATILHO) ---
+    // Envio assíncrono para não travar a resposta, usando os dados do 'draft' carregados anteriormente
+    try {
+        console.log(`[Email] Enviando aviso de publicação para: ${draft.user.email}`);
+        
+        await sendMail({
+            to: draft.user.email,
+            subject: `Seu livro "${draft.title}" está pronto! 📖`,
+            html: getBookPublishedTemplate(
+                draft.user.name || "Autor", 
+                draft.title, 
+                draft.coverUrl
+            )
+        });
+    } catch (emailError) {
+        console.error("⚠️ Falha ao enviar email de publicação:", emailError);
+    }
+    // ----------------------------------------
 
     return NextResponse.json({ 
       success: true, 
