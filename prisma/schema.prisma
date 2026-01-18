@@ -19,7 +19,7 @@ model User {
   profileVisibility      ProfileVisibility     @default(PUBLIC)
   credits                Int                   @default(50)
   displayedInsigniaIds   String[]
-  resetCode              String? // O código de 6 dígitos
+  resetCode              String?
   resetCodeExpires       DateTime?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
@@ -53,6 +53,8 @@ model User {
   conversation           Conversation?         @relation(fields: [conversationId], references: [id])
   bookDrafts             BookDraft[]
   userDictionaries       UserDictionary[]
+  createdGames           Game[]                @relation("CreatedGames")
+  purchasedGames         GamePurchase[]
 }
 
 model Notification {
@@ -72,11 +74,10 @@ model Notification {
 model Follows {
   followerId  String
   followingId String
-  follower    User   @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
-  following   User   @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@id([followerId, followingId])
 }
@@ -399,59 +400,53 @@ model Message {
 }
 
 model BookDraft {
-  id        String      @id @default(cuid())
-  title     String
-  synopsis  String?
-  coverUrl  String?
-  genre     String?
-  status    DraftStatus @default(IN_PROGRESS)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id         String           @id @default(cuid())
+  title      String
+  synopsis   String?
+  coverUrl   String?
+  genre      String?
+  status     DraftStatus      @default(IN_PROGRESS)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   chapters   DraftChapter[]
   characters DraftCharacter[]
   lore       DraftLore[]
 }
 
 model DraftChapter {
-  id           String  @id @default(cuid())
+  id           String    @id @default(cuid())
   title        String
   content      String
   order        Int
   wallpaperUrl String?
   textColor    String?
-  theme        String? @default("dark")
-  fontFamily   String? @default("Merriweather")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  draftId String
-  draft   BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  theme        String?   @default("dark")
+  fontFamily   String?   @default("Merriweather")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  draftId      String
+  draft        BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
 }
 
 model DraftCharacter {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  role        String? // Ex: Protagonista, Antagonista
+  role        String?
   description String?
-  imageUrl    String? // Avatar do personagem
-
-  draftId String
-  draft   BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  imageUrl    String?
+  draftId     String
+  draft       BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
 }
 
 model DraftLore {
-  id       String @id @default(cuid())
-  title    String // Ex: "Reino de Aethelgard", "Sistema de Magia"
-  category String // Ex: Localização, História, Magia
+  id       String    @id @default(cuid())
+  title    String
+  category String
   content  String
-
-  draftId String
-  draft   BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  draftId  String
+  draft    BookDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
 }
 
 model UserDictionary {
@@ -462,8 +457,41 @@ model UserDictionary {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
-  @@unique([userId, word]) // Evita duplicatas para o mesmo usuário
+  @@unique([userId, word])
   @@index([userId])
+}
+
+model Game {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  coverUrl    String?
+  htmlContent String          @db.Text
+  orientation GameOrientation @default(PORTRAIT)
+  price       Int             @default(15)
+  plays       Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  ownerId     String
+  owner       User            @relation("CreatedGames", fields: [ownerId], references: [id])
+  purchases   GamePurchase[]
+}
+
+model GamePurchase {
+  id        String   @id @default(cuid())
+  userId    String
+  gameId    String
+  amount    Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+}
+
+enum GameOrientation {
+  PORTRAIT
+  LANDSCAPE
 }
 
 enum DraftStatus {
