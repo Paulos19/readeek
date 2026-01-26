@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { getCurrentlyReadingBook } from "@/app/actions/bookActions";
 import { MobileTabBar } from "./MobileTabBar";
 import { User } from "@prisma/client";
+import { authOptions } from "@/lib/auth";
 
 // Este Server Component busca os dados e só renderiza a TabBar no cliente se o utilizador estiver logado.
 export async function MobileNavigation() {

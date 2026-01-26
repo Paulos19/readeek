@@ -1,5 +1,4 @@
 import { getServerSession } from "next-auth";
-import { authOptions } from "./api/auth/[...nextauth]/route";
 import Header from "@/components/layout/Header";
 import { PostCard } from "@/components/posts/PostCard";
 import { CreatePostForm } from "@/components/posts/CreatePostForm";
@@ -12,6 +11,7 @@ import { SuggestedUsersCard } from "@/components/community/SuggestedUsersCard";
 // 1. Importe o componente da lista de comunidades
 import LatestCommunitiesList from "@/components/community/LatestCommunitiesList";
 import { getLatestCommunities } from "./actions/communityActions";
+import { authOptions } from "@/lib/auth";
 
 interface HomePageProps {
   searchParams: {

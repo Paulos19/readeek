@@ -3,9 +3,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { authOptions } from "../api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
 import { ProfileVisibility } from "@prisma/client";
+import { authOptions } from "@/lib/auth";
 
 interface ProfileUpdateData {
   name: string;
