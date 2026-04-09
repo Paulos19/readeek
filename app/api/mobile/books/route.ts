@@ -164,8 +164,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, book: newBook });
 
-  } catch (error) {
-    console.error("Erro upload mobile:", error);
-    return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
+  } catch (error: any) {
+    console.error("Erro upload mobile (Geral):", error);
+
+    // Tratamento extremamente detalhado do erro para não retornar apenas '500'
+    const errorMessage = error?.message || error?.toString() || "Erro não identificado";
+    const errorStack = error?.stack || "Sem stack trace";
+
+    return NextResponse.json({
+      error: "Erro interno no servidor",
+      details: errorMessage,
+      stack: errorStack
+    }, { status: 500 });
   }
 }
