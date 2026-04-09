@@ -35,8 +35,27 @@ export async function POST(request: Request) {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
 
-    const payload = await request.json();
-    const { name, description, imageUrl } = payload;
+    const contentType = request.headers.get("content-type") || "";
+    let name, description, imageUrl;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      name = formData.get("name") as string;
+      description = formData.get("description") as string;
+
+      const imageFile = formData.get("image") as File | null;
+      if (imageFile) {
+        const blob = await utapi.uploadFiles(
+          new File([await imageFile.arrayBuffer()], `shop-${Date.now()}-${imageFile.name}`, { type: imageFile.type })
+        );
+        if (!blob.error && blob.data) imageUrl = blob.data.url;
+      }
+    } else {
+      const payload = await request.json();
+      name = payload.name;
+      description = payload.description;
+      imageUrl = payload.imageUrl || null;
+    }
 
     if (!name) return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 });
 

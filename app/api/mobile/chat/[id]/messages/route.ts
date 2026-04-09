@@ -55,17 +55,71 @@ export async function POST(
       select: { name: true }
     });
 
-    const payload = await request.json();
-    const { content, imageUrl, audioUrl, fileUrl, fileName, fileSize, replyToId } = payload;
+    const contentType = request.headers.get("content-type") || "";
 
-    if (!content && !imageUrl && !audioUrl && !fileUrl) {
-      return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
-    }
-
+    let content = "";
+    let replyToId = null;
+    let imageUrl = null;
+    let audioUrl = null;
+    let fileUrl = null;
+    let fileName = null;
+    let fileSize = null;
     let type = "TEXT";
-    if (imageUrl) type = "IMAGE";
-    if (audioUrl) type = "AUDIO";
-    if (fileUrl) type = "FILE";
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      content = formData.get("content") as string || "";
+      replyToId = formData.get("replyToId") as string || null;
+
+      const imageFile = formData.get("image") as File | null;
+      if (imageFile) {
+        const blob = await utapi.uploadFiles(
+          new File([await imageFile.arrayBuffer()], `chat-image-${Date.now()}-${imageFile.name}`, { type: imageFile.type })
+        );
+        if (!blob.error && blob.data) {
+          imageUrl = blob.data.url;
+          type = "IMAGE";
+        }
+      }
+
+      const audioFile = formData.get("audio") as File | null;
+      if (audioFile) {
+        const blob = await utapi.uploadFiles(
+          new File([await audioFile.arrayBuffer()], `chat-audio-${Date.now()}.m4a`, { type: 'audio/m4a' })
+        );
+        if (!blob.error && blob.data) {
+          audioUrl = blob.data.url;
+          type = "AUDIO";
+        }
+      }
+
+      const rawFile = formData.get("file") as File | null;
+      const fSize = formData.get("fileSize") as string;
+      if (rawFile) {
+        const blob = await utapi.uploadFiles(
+          new File([await rawFile.arrayBuffer()], `chat-file-${Date.now()}-${rawFile.name}`, { type: rawFile.type })
+        );
+        if (!blob.error && blob.data) {
+          fileUrl = blob.data.url;
+          fileName = rawFile.name;
+          fileSize = fSize ? parseInt(fSize, 10) : rawFile.size;
+          type = "FILE";
+        }
+      }
+    } else {
+      const payload = await request.json();
+      content = payload.content || "";
+      imageUrl = payload.imageUrl || null;
+      audioUrl = payload.audioUrl || null;
+      fileUrl = payload.fileUrl || null;
+      fileName = payload.fileName || null;
+      fileSize = payload.fileSize || null;
+      replyToId = payload.replyToId || null;
+
+      if (imageUrl) type = "IMAGE";
+      if (audioUrl) type = "AUDIO";
+      if (fileUrl) type = "FILE";
+    }
 
     // --- SALVAR NO BANCO (PRISMA) ---
     const message = await prisma.message.create({

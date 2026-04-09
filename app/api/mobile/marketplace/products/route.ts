@@ -28,10 +28,38 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Você precisa criar uma loja primeiro" }, { status: 400 });
         }
 
-        const payload = await request.json();
-        const { title, description, currency, address, imageUrl } = payload;
-        const price = parseFloat(payload.price as string);
-        const stock = parseInt(payload.stock as string) || 1;
+        const contentType = request.headers.get("content-type") || "";
+
+        let title, description, currency, address, imageUrl;
+        let price = 0;
+        let stock = 1;
+
+        if (contentType.includes("multipart/form-data")) {
+            const formData = await request.formData();
+            title = formData.get("title") as string;
+            description = formData.get("description") as string;
+            currency = formData.get("currency") as string;
+            address = formData.get("address") as string;
+            price = parseFloat(formData.get("price") as string);
+            stock = parseInt(formData.get("stock") as string) || 1;
+
+            const imageFile = formData.get("image") as File | null;
+            if (imageFile) {
+                const blob = await utapi.uploadFiles(
+                    new File([await imageFile.arrayBuffer()], `product-${Date.now()}-${imageFile.name}`, { type: imageFile.type })
+                );
+                if (!blob.error && blob.data) imageUrl = blob.data.url;
+            }
+        } else {
+            const payload = await request.json();
+            title = payload.title;
+            description = payload.description;
+            currency = payload.currency;
+            address = payload.address;
+            imageUrl = payload.imageUrl || null;
+            price = parseFloat(payload.price as string);
+            stock = parseInt(payload.stock as string) || 1;
+        }
 
         // CORREÇÃO: Usando 'product' em vez de 'marketProduct'
         const product = await prisma.product.create({

@@ -39,18 +39,38 @@ export async function POST(request: Request) {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
 
-    const payload = await request.json();
-    const { myBubbleColor, otherBubbleColor, wallpaperUrl, removeWallpaper } = payload;
+    const contentType = request.headers.get("content-type") || "";
 
     const updateData: any = {};
+    let removeWallpaper = false;
 
-    if (myBubbleColor) updateData.myBubbleColor = myBubbleColor;
-    if (otherBubbleColor) updateData.otherBubbleColor = otherBubbleColor;
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const myBubbleColor = formData.get("myBubbleColor") as string | null;
+      const otherBubbleColor = formData.get("otherBubbleColor") as string | null;
+      removeWallpaper = formData.get("removeWallpaper") === "true";
 
-    if (removeWallpaper) {
-      updateData.wallpaperUrl = null;
-    } else if (wallpaperUrl) {
-      updateData.wallpaperUrl = wallpaperUrl;
+      if (myBubbleColor) updateData.myBubbleColor = myBubbleColor;
+      if (otherBubbleColor) updateData.otherBubbleColor = otherBubbleColor;
+
+      const wallpaperFile = formData.get("wallpaper") as File | null;
+      if (wallpaperFile) {
+        const blob = await utapi.uploadFiles(
+          new File([await wallpaperFile.arrayBuffer()], `wallpaper-${Date.now()}-${wallpaperFile.name}`, { type: wallpaperFile.type })
+        );
+        if (!blob.error && blob.data) updateData.wallpaperUrl = blob.data.url;
+      }
+      if (removeWallpaper) updateData.wallpaperUrl = null;
+    } else {
+      const payload = await request.json();
+      if (payload.myBubbleColor) updateData.myBubbleColor = payload.myBubbleColor;
+      if (payload.otherBubbleColor) updateData.otherBubbleColor = payload.otherBubbleColor;
+
+      if (payload.removeWallpaper) {
+        updateData.wallpaperUrl = null;
+      } else if (payload.wallpaperUrl) {
+        updateData.wallpaperUrl = payload.wallpaperUrl;
+      }
     }
 
     const updatedUser = await prisma.user.update({

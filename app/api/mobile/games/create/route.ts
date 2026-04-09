@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { utapi } from "@/lib/uploadthing-server";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
@@ -13,8 +14,34 @@ export async function POST(req: Request) {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
 
-    const body = await req.json();
-    const { title, description, htmlContent, orientation, mode, coverUrl } = body;
+    const contentType = req.headers.get("content-type") || "";
+
+    let title, description, htmlContent, orientation, mode, coverUrl = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      title = formData.get("title") as string;
+      description = formData.get("description") as string;
+      htmlContent = formData.get("htmlContent") as string;
+      orientation = formData.get("orientation") as string;
+      mode = formData.get("mode") as string;
+
+      const coverFile = formData.get("cover") as File | null;
+      if (coverFile) {
+        const blob = await utapi.uploadFiles(
+          new File([await coverFile.arrayBuffer()], `game-${Date.now()}-${coverFile.name}`, { type: coverFile.type })
+        );
+        if (!blob.error && blob.data) coverUrl = blob.data.url;
+      }
+    } else {
+      const body = await req.json();
+      title = body.title;
+      description = body.description;
+      htmlContent = body.htmlContent;
+      orientation = body.orientation;
+      mode = body.mode;
+      coverUrl = body.coverUrl || null;
+    }
     // mode: 'IMPORT' (45) | 'CREATE' (60)
 
     const cost = mode === 'CREATE' ? 60 : 45;

@@ -42,8 +42,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // 3. Processamento do Upload
   try {
-    const payload = await req.json();
-    const { fileUrl, fileName } = payload;
+    const contentType = req.headers.get("content-type") || "";
+    let fileUrl = null;
+    let fileName = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      const file = formData.get("file") as File | null;
+      fileName = formData.get("fileName") as string || (file ? file.name : "document");
+
+      if (file) {
+        const blob = await utapi.uploadFiles(
+          new File([await file.arrayBuffer()], `community-file-${Date.now()}-${file.name}`, { type: file.type })
+        );
+        if (!blob.error && blob.data) fileUrl = blob.data.url;
+      }
+    } else {
+      const payload = await req.json();
+      fileUrl = payload.fileUrl;
+      fileName = payload.fileName;
+    }
 
     if (!fileUrl || !fileName) return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
 
