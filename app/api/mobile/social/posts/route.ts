@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
-import { put } from "@vercel/blob"; 
+import { utapi } from "@/lib/uploadthing-server";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
         },
         _count: {
           select: {
-            reactions: true, 
+            reactions: true,
             comments: true
           }
         }
@@ -62,12 +62,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: Request) {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  
+
   let userId = "";
-  try { 
-      userId = (jwt.verify(authHeader.split(" ")[1], JWT_SECRET) as any).userId; 
-  } catch { 
-      return NextResponse.json({ status: 401 }); 
+  try {
+    userId = (jwt.verify(authHeader.split(" ")[1], JWT_SECRET) as any).userId;
+  } catch {
+    return NextResponse.json({ status: 401 });
   }
 
   try {
@@ -78,25 +78,27 @@ export async function POST(req: Request) {
     let imageUrl = null;
 
     if (contentType.includes("multipart/form-data")) {
-        const formData = await req.formData();
-        content = formData.get("content") as string || "";
-        type = formData.get("type") as string || "POST";
-        bookId = formData.get("bookId") as string || null;
-        
-        const imageFile = formData.get("image") as File | null;
-        if (imageFile) {
-            const blob = await put(imageFile.name, imageFile, { access: 'public' });
-            imageUrl = blob.url;
-        }
+      const formData = await req.formData();
+      content = formData.get("content") as string || "";
+      type = formData.get("type") as string || "POST";
+      bookId = formData.get("bookId") as string || null;
+
+      const imageFile = formData.get("image") as File | null;
+      if (imageFile) {
+        const blob = await utapi.uploadFiles(
+          new File([await imageFile.arrayBuffer()], `posts-${Date.now()}-${imageFile.name}`, { type: imageFile.type })
+        );
+        if (!blob.error && blob.data) imageUrl = blob.data.url;
+      }
     } else {
-        const body = await req.json();
-        content = body.content;
-        type = body.type || "POST";
-        bookId = body.bookId || null;
+      const body = await req.json();
+      content = body.content;
+      type = body.type || "POST";
+      bookId = body.bookId || null;
     }
 
     if (!content.trim() && !imageUrl) {
-        return NextResponse.json({ error: "Post requires text or image." }, { status: 400 });
+      return NextResponse.json({ error: "Post requires text or image." }, { status: 400 });
     }
 
     const post = await prisma.post.create({
@@ -105,7 +107,7 @@ export async function POST(req: Request) {
         type: type as any,
         userId,
         bookId: bookId || undefined,
-        imageUrl: imageUrl || undefined 
+        imageUrl: imageUrl || undefined
       },
       include: {
         user: { select: { name: true, image: true } },

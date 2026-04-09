@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseEpub } from "@/lib/epubParser"; // Certifique-se de que este arquivo existe (criado no passo anterior)
-import { put } from "@vercel/blob";
+import { utapi } from "@/lib/uploadthing-server";
 import jwt from "jsonwebtoken";
 
 // Segredo JWT (Mesmo usado no resto da API Mobile)
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const token = authHeader.split(" ")[1];
-    
+
     let userId: string;
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
@@ -39,13 +39,13 @@ export async function POST(req: Request) {
 
     // Se já tem capa e autor definido, não faz nada
     if (book.coverUrl && book.author !== "Autor desconhecido") {
-        return NextResponse.json({ success: true, updated: false, message: "Metadata already up to date" });
+      return NextResponse.json({ success: true, updated: false, message: "Metadata already up to date" });
     }
 
     // 4. Baixar o arquivo e Reprocessar (Lógica central)
     const response = await fetch(book.filePath);
     if (!response.ok) throw new Error("Failed to fetch book file");
-    
+
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const metadata = await parseEpub(buffer);
@@ -53,36 +53,36 @@ export async function POST(req: Request) {
     // 5. Upload da nova capa (se encontrada)
     let newCoverUrl = book.coverUrl;
     if (metadata.coverBuffer && metadata.coverMimeType) {
-        const safeTitle = metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        const ext = metadata.coverMimeType.split('/')[1] || 'jpg';
-        const coverFilename = `covers/${Date.now()}-${safeTitle}.${ext}`;
-        
-        const coverBlob = await put(coverFilename, metadata.coverBuffer, {
-            access: 'public',
-            contentType: metadata.coverMimeType,
-        });
-        newCoverUrl = coverBlob.url;
+      const safeTitle = metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const ext = metadata.coverMimeType.split('/')[1] || 'jpg';
+      const coverFilename = `covers/${Date.now()}-${safeTitle}.${ext}`;
+
+      const coverFile = new File([new Uint8Array(metadata.coverBuffer)], coverFilename, { type: metadata.coverMimeType });
+      const coverBlob = await utapi.uploadFiles(coverFile);
+      if (!coverBlob.error && coverBlob.data) {
+        newCoverUrl = coverBlob.data.url;
+      }
     }
 
     // 6. Atualizar Banco de Dados
     const updatedBook = await prisma.book.update({
-        where: { id: bookId },
-        data: {
-            title: metadata.title !== "Sem Título" ? metadata.title : book.title,
-            author: metadata.author !== "Autor Desconhecido" ? metadata.author : book.author,
-            description: metadata.description || book.description,
-            coverUrl: newCoverUrl,
-        }
+      where: { id: bookId },
+      data: {
+        title: metadata.title !== "Sem Título" ? metadata.title : book.title,
+        author: metadata.author !== "Autor Desconhecido" ? metadata.author : book.author,
+        description: metadata.description || book.description,
+        coverUrl: newCoverUrl,
+      }
     });
 
-    return NextResponse.json({ 
-        success: true, 
-        updated: true, 
-        book: {
-            title: updatedBook.title,
-            author: updatedBook.author,
-            coverUrl: updatedBook.coverUrl
-        }
+    return NextResponse.json({
+      success: true,
+      updated: true,
+      book: {
+        title: updatedBook.title,
+        author: updatedBook.author,
+        coverUrl: updatedBook.coverUrl
+      }
     });
 
   } catch (error) {

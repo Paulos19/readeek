@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { put } from "@vercel/blob";
+import { utapi } from "@/lib/uploadthing-server";
 import jwt from "jsonwebtoken";
 import { pusherServer } from "@/lib/pusher"; // <--- Importante: Importe o Singleton do Pusher
 
@@ -20,12 +20,12 @@ export async function GET(
     const userId = decoded.userId;
 
     const messages = await prisma.message.findMany({
-      where: { 
+      where: {
         conversationId: params.id,
         NOT: { deletedForIds: { has: userId } }
       },
       orderBy: { createdAt: 'desc' },
-      include: { 
+      include: {
         sender: { select: { id: true, name: true, image: true } },
         replyTo: { select: { id: true, content: true, type: true, sender: { select: { name: true } } } }
       }
@@ -51,8 +51,8 @@ export async function POST(
     const userId = decoded.userId;
 
     const sender = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { name: true }
+      where: { id: userId },
+      select: { name: true }
     });
 
     const formData = await request.formData();
@@ -63,10 +63,10 @@ export async function POST(
     const replyToId = formData.get("replyToId") as string | null;
 
     if (!content && !imageFile && !audioFile && !docFile) {
-        return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
+      return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
     }
 
-    // --- UPLOAD VERCEL BLOB ---
+    // --- UPLOAD THING ---
     let imageUrl = null;
     let audioUrl = null;
     let fileUrl = null;
@@ -76,20 +76,26 @@ export async function POST(
 
     if (imageFile) {
       type = "IMAGE";
-      const blob = await put(`chat/${params.id}/images/${Date.now()}-${imageFile.name}`, imageFile, { access: 'public' });
-      imageUrl = blob.url;
+      const blob = await utapi.uploadFiles(
+        new File([await imageFile.arrayBuffer()], `chat-${params.id}-images-${Date.now()}-${imageFile.name}`, { type: imageFile.type })
+      );
+      if (!blob.error && blob.data) imageUrl = blob.data.url;
     }
     if (audioFile) {
       type = "AUDIO";
-      const blob = await put(`chat/${params.id}/audio/${Date.now()}.m4a`, audioFile, { access: 'public' });
-      audioUrl = blob.url;
+      const blob = await utapi.uploadFiles(
+        new File([await audioFile.arrayBuffer()], `chat-${params.id}-audio-${Date.now()}.m4a`, { type: audioFile.type || "audio/m4a" })
+      );
+      if (!blob.error && blob.data) audioUrl = blob.data.url;
     }
     if (docFile) {
       type = "FILE";
       fileName = docFile.name;
       fileSize = docFile.size;
-      const blob = await put(`chat/${params.id}/files/${Date.now()}-${docFile.name}`, docFile, { access: 'public' });
-      fileUrl = blob.url;
+      const blob = await utapi.uploadFiles(
+        new File([await docFile.arrayBuffer()], `chat-${params.id}-files-${Date.now()}-${docFile.name}`, { type: docFile.type })
+      );
+      if (!blob.error && blob.data) fileUrl = blob.data.url;
     }
 
     // --- SALVAR NO BANCO (PRISMA) ---
@@ -106,7 +112,7 @@ export async function POST(
         type,
         replyToId: replyToId || null,
       },
-      include: { 
+      include: {
         sender: { select: { id: true, name: true, image: true } },
         replyTo: { select: { id: true, content: true, type: true, sender: { select: { name: true } } } }
       }
@@ -120,41 +126,41 @@ export async function POST(
 
     // --- REAL-TIME: PUSHER TRIGGER (Adicionado) ---
     try {
-        await pusherServer.trigger(
-            `presence-chat-${params.id}`, // Nome do canal (deve bater com o hook do frontend)
-            'new-message',                // Nome do evento
-            message                       // Payload (a mensagem completa)
-        );
+      await pusherServer.trigger(
+        `presence-chat-${params.id}`, // Nome do canal (deve bater com o hook do frontend)
+        'new-message',                // Nome do evento
+        message                       // Payload (a mensagem completa)
+      );
     } catch (pusherError) {
-        // Não falhamos a request se o socket falhar, apenas logamos
-        console.error("Erro ao disparar Pusher:", pusherError);
+      // Não falhamos a request se o socket falhar, apenas logamos
+      console.error("Erro ao disparar Pusher:", pusherError);
     }
     // ----------------------------------------------
 
     // --- NOTIFICAÇÃO PUSH (Para quem não está com o chat aberto) ---
     const conversation = await prisma.conversation.findUnique({
-        where: { id: params.id },
-        include: { participants: { select: { id: true } } }
+      where: { id: params.id },
+      include: { participants: { select: { id: true } } }
     });
 
     if (conversation) {
-        const recipients = conversation.participants.filter(p => p.id !== userId);
-        const notifMessage = type === 'IMAGE' ? '📷 Imagem' : 
-                             type === 'AUDIO' ? '🎵 Áudio' : 
-                             type === 'FILE' ? '📄 Arquivo' : 
-                             content;
+      const recipients = conversation.participants.filter(p => p.id !== userId);
+      const notifMessage = type === 'IMAGE' ? '📷 Imagem' :
+        type === 'AUDIO' ? '🎵 Áudio' :
+          type === 'FILE' ? '📄 Arquivo' :
+            content;
 
-        await Promise.all(recipients.map(recipient => 
-            prisma.notification.create({
-                data: {
-                    userId: recipient.id,
-                    title: sender?.name || "Nova Mensagem",
-                    message: notifMessage || "Nova mensagem recebida",
-                    type: "MESSAGE",
-                    link: `/(app)/chat/${params.id}`
-                }
-            })
-        ));
+      await Promise.all(recipients.map(recipient =>
+        prisma.notification.create({
+          data: {
+            userId: recipient.id,
+            title: sender?.name || "Nova Mensagem",
+            message: notifMessage || "Nova mensagem recebida",
+            type: "MESSAGE",
+            link: `/(app)/chat/${params.id}`
+          }
+        })
+      ));
     }
 
     return NextResponse.json(message);

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { utapi } from "@/lib/uploadthing-server";
 import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getServerSession } from "next-auth";
@@ -47,14 +47,14 @@ export async function POST(req: Request) {
     if (imageUrl.startsWith('data:')) {
       // Formato: data:image/png;base64,iVBORw0KGgo...
       const matches = imageUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-      
+
       if (!matches || matches.length !== 3) {
         return NextResponse.json({ error: "Formato Base64 inválido" }, { status: 400 });
       }
 
       contentType = matches[1]; // ex: image/png
       fileBuffer = Buffer.from(matches[2], 'base64');
-    } 
+    }
     // Cenário B: Imagem via URL (Vindo do DALL-E ou URL externa)
     else {
       const imageRes = await fetch(imageUrl);
@@ -67,22 +67,23 @@ export async function POST(req: Request) {
     // ------------------------------------------------------------------
     // 3. UPLOAD PARA VERCEL BLOB
     // ------------------------------------------------------------------
-    const filename = `covers/${draftId}-${Date.now()}.${contentType.split('/')[1]}`;
-    
-    const blob = await put(filename, fileBuffer, { 
-      access: 'public',
-      contentType: contentType
-    });
+    const filename = `covers-${draftId}-${Date.now()}.${contentType.split('/')[1]}`;
+
+    const blob = await utapi.uploadFiles(
+      new File([new Uint8Array(fileBuffer)], filename, { type: contentType })
+    );
+
+    if (blob.error || !blob.data) throw new Error("Falha ao salvar a imagem na nuvem");
 
     // ------------------------------------------------------------------
     // 4. ATUALIZAR BANCO DE DADOS
     // ------------------------------------------------------------------
     await prisma.bookDraft.update({
       where: { id: draftId },
-      data: { coverUrl: blob.url }
+      data: { coverUrl: blob.data.url }
     });
 
-    return NextResponse.json({ success: true, coverUrl: blob.url });
+    return NextResponse.json({ success: true, coverUrl: blob.data.url });
 
   } catch (error: any) {
     console.error("[COVER_SAVE_ERROR]", error);

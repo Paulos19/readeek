@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { put } from "@vercel/blob";
+import { utapi } from "@/lib/uploadthing-server";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   try {
     const token = authHeader.split(" ")[1];
     const decoded: any = jwt.verify(token, JWT_SECRET);
-    
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
@@ -54,10 +54,10 @@ export async function POST(request: Request) {
     if (removeWallpaper) {
       updateData.wallpaperUrl = null;
     } else if (file) {
-      const blob = await put(`wallpapers/${userId}-${Date.now()}.jpg`, file, {
-        access: 'public',
-      });
-      updateData.wallpaperUrl = blob.url;
+      const blob = await utapi.uploadFiles(
+        new File([await file.arrayBuffer()], `wallpapers-${userId}-${Date.now()}.jpg`, { type: file.type })
+      );
+      if (!blob.error && blob.data) updateData.wallpaperUrl = blob.data.url;
     }
 
     const updatedUser = await prisma.user.update({

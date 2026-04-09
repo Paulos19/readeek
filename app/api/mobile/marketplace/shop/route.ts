@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { put } from "@vercel/blob";
+import { utapi } from "@/lib/uploadthing-server";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
@@ -44,10 +44,10 @@ export async function POST(request: Request) {
 
     let imageUrl = null;
     if (file) {
-      const blob = await put(`shops/${userId}-${file.name}`, file, {
-        access: 'public',
-      });
-      imageUrl = blob.url;
+      const blob = await utapi.uploadFiles(
+        new File([await file.arrayBuffer()], `shops-${userId}-${file.name}`, { type: file.type })
+      );
+      if (!blob.error && blob.data) imageUrl = blob.data.url;
     }
 
     const shop = await prisma.shop.create({

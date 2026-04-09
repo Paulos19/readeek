@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
-import { put } from "@vercel/blob";
+import { utapi } from "@/lib/uploadthing-server";
 import JSZip from "jszip";
 import * as cheerio from "cheerio";
 
@@ -10,7 +10,7 @@ import { sendMail } from "@/lib/mail";
 import { getBookPublishedTemplate } from "@/lib/emails/transactional-templates";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
-const COST_EXPORT_BOOK = 25; 
+const COST_EXPORT_BOOK = 25;
 
 /**
  * Limpa o HTML do editor usando Cheerio e garante conformidade estrita com XHTML 
@@ -24,7 +24,7 @@ function processHtmlForEpub(content: string) {
   $('.resize-container').each((_, el) => {
     const container = $(el);
     const img = container.find('img');
-    
+
     if (img.length === 0) {
       container.remove();
       return;
@@ -34,7 +34,7 @@ function processHtmlForEpub(content: string) {
     const styleAttr = container.attr('style') || '';
     const widthMatch = styleAttr.match(/width:\s*([^;]+)/);
     const heightMatch = styleAttr.match(/height:\s*([^;]+)/);
-    
+
     const width = widthMatch ? widthMatch[1] : '100%';
     const height = heightMatch ? heightMatch[1] : 'auto';
 
@@ -50,7 +50,7 @@ function processHtmlForEpub(content: string) {
     // Atributos de fallback (leitura legada)
     if (width.includes('px')) img.attr('width', width.replace('px', '').trim());
     if (height.includes('px')) img.attr('height', height.replace('px', '').trim());
-    
+
     container.removeAttr('contenteditable');
   });
 
@@ -87,14 +87,14 @@ export async function POST(
     // Recuperamos 'draft' aqui, que contém os dados do usuário (email/nome) necessários para o e-mail
     const { draft } = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: userId } });
-      
+
       if (!user || user.credits < COST_EXPORT_BOOK) {
         throw new Error("INSUFFICIENT_FUNDS");
       }
 
       const d = await tx.bookDraft.findUnique({
         where: { id: draftId },
-        include: { 
+        include: {
           chapters: { orderBy: { order: 'asc' } },
           user: true // Importante: Traz o email do autor
         }
@@ -134,7 +134,7 @@ export async function POST(
     draft.chapters.forEach((chapter, index) => {
       const filename = `chapter_${index + 1}.xhtml`;
       const chapterId = `chap${index + 1}`;
-      
+
       tocHtmlContent += `<li><a href="${filename}">${chapter.title}</a></li>`;
 
       // PROCESSAMENTO DE XHTML COM CHEERIO
@@ -209,12 +209,13 @@ export async function POST(
     // 3. Gerar Binário e Upload para Vercel Blob
     const epubContent = await zip.generateAsync({ type: "nodebuffer" });
     const fileNameSafe = draft.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const fileKey = `published/${fileNameSafe}_${Date.now()}.epub`;
-    
-    const blob = await put(fileKey, epubContent, {
-      access: 'public',
-      contentType: 'application/epub+zip'
-    });
+    const fileKey = `published-${fileNameSafe}_${Date.now()}.epub`;
+
+    const blob = await utapi.uploadFiles(
+      new File([new Uint8Array(epubContent)], fileKey, { type: 'application/epub+zip' })
+    );
+
+    if (blob.error || !blob.data) throw new Error("Falha no upload do EPUB");
 
     // 4. Salvar no Banco e Cobrar Créditos
     const resultBook = await prisma.$transaction(async (tx) => {
@@ -231,7 +232,7 @@ export async function POST(
         return await tx.book.update({
           where: { id: existingBook.id },
           data: {
-            filePath: blob.url,
+            filePath: blob.data.url,
             updatedAt: new Date(),
             description: draft.synopsis,
             coverUrl: draft.coverUrl
@@ -243,7 +244,7 @@ export async function POST(
             title: draft.title,
             author: draft.user.name || "Autor Readeek",
             description: draft.synopsis,
-            filePath: blob.url,
+            filePath: blob.data.url,
             coverUrl: draft.coverUrl,
             userId: userId,
             progress: 0
@@ -255,25 +256,25 @@ export async function POST(
     // --- 5. EMAIL DE PUBLICAÇÃO (GATILHO) ---
     // Envio assíncrono para não travar a resposta, usando os dados do 'draft' carregados anteriormente
     try {
-        console.log(`[Email] Enviando aviso de publicação para: ${draft.user.email}`);
-        
-        await sendMail({
-            to: draft.user.email,
-            subject: `Seu livro "${draft.title}" está pronto! 📖`,
-            html: getBookPublishedTemplate(
-                draft.user.name || "Autor", 
-                draft.title, 
-                draft.coverUrl
-            )
-        });
+      console.log(`[Email] Enviando aviso de publicação para: ${draft.user.email}`);
+
+      await sendMail({
+        to: draft.user.email,
+        subject: `Seu livro "${draft.title}" está pronto! 📖`,
+        html: getBookPublishedTemplate(
+          draft.user.name || "Autor",
+          draft.title,
+          draft.coverUrl
+        )
+      });
     } catch (emailError) {
-        console.error("⚠️ Falha ao enviar email de publicação:", emailError);
+      console.error("⚠️ Falha ao enviar email de publicação:", emailError);
     }
     // ----------------------------------------
 
-    return NextResponse.json({ 
-      success: true, 
-      bookId: resultBook.id, 
+    return NextResponse.json({
+      success: true,
+      bookId: resultBook.id,
       action: resultBook.updatedAt > resultBook.createdAt ? "updated" : "created"
     });
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
-import { put } from "@vercel/blob"; // Importante: @vercel/blob
+import { utapi } from "@/lib/uploadthing-server";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
 
@@ -10,7 +10,7 @@ export async function PATCH(request: Request) {
     // 1. Autenticação
     const authHeader = request.headers.get("authorization");
     if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    
+
     const token = authHeader.split(" ")[1];
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId || decoded.id;
@@ -32,14 +32,13 @@ export async function PATCH(request: Request) {
       if (about) dataToUpdate.about = about;
       if (profileVisibility) dataToUpdate.profileVisibility = profileVisibility;
 
-      // Se enviou uma nova imagem, faz upload para o Blob
+      // Se enviou uma nova imagem, faz upload para o UploadThing
       if (file) {
-        const filename = `avatars/${userId}-${Date.now()}.${file.name.split('.').pop()}`;
-        const blob = await put(filename, file, { 
-            access: 'public',
-            contentType: file.type // Preserva o tipo (png/jpg)
-        });
-        dataToUpdate.image = blob.url; // Salva a URL pública do Vercel Blob
+        const filename = `avatars-${userId}-${Date.now()}.${file.name.split('.').pop()}`;
+        const blob = await utapi.uploadFiles(
+          new File([await file.arrayBuffer()], filename, { type: file.type })
+        );
+        if (!blob.error && blob.data) dataToUpdate.image = blob.data.url;
       }
 
     } else {
@@ -53,7 +52,7 @@ export async function PATCH(request: Request) {
       where: { id: userId },
       data: dataToUpdate,
       select: {
-        id: true, name: true, email: true, image: true, role: true, 
+        id: true, name: true, email: true, image: true, role: true,
         about: true, profileVisibility: true, credits: true
       }
     });

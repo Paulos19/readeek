@@ -1,6 +1,6 @@
 "use server";
 
-import { put } from "@vercel/blob";
+import { utapi } from "@/lib/uploadthing-server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -46,22 +46,28 @@ export async function uploadBook(formData: FormData) {
     // Usamos um nome limpo baseado no título extraído
     const safeTitle = metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const filename = `books/${Date.now()}-${safeTitle}.epub`;
-    
-    const bookBlob = await put(filename, file, {
-      access: 'public',
-    });
+
+    const bookBlob = await utapi.uploadFiles(
+      new File([new Uint8Array(buffer)], filename, { type: 'application/epub+zip' })
+    );
+
+    if (bookBlob.error) {
+      throw new Error("Failed to upload book to UploadThing");
+    }
 
     // 4. Upload da Capa (apenas se extraída com sucesso)
     let coverUrl = null;
     if (metadata.coverBuffer && metadata.coverMimeType) {
       const ext = metadata.coverMimeType.split('/')[1] || 'jpg';
       const coverFilename = `covers/${Date.now()}-${safeTitle}.${ext}`;
-      
-      const coverBlob = await put(coverFilename, metadata.coverBuffer, {
-        access: 'public',
-        contentType: metadata.coverMimeType,
+
+      const coverFile = new File([new Uint8Array(metadata.coverBuffer)], coverFilename, {
+        type: metadata.coverMimeType,
       });
-      coverUrl = coverBlob.url;
+      const coverBlob = await utapi.uploadFiles(coverFile);
+      if (!coverBlob.error && coverBlob.data) {
+        coverUrl = coverBlob.data.url;
+      }
     }
 
     // 5. Salvar no Banco de Dados
@@ -70,7 +76,7 @@ export async function uploadBook(formData: FormData) {
         title: metadata.title,
         author: metadata.author,
         description: metadata.description, // Salva a sinopse extraída
-        filePath: bookBlob.url,
+        filePath: bookBlob.data.url,
         coverUrl: coverUrl, // Salva a URL da capa do Blob
         userId: session.user.id,
         progress: 0,
@@ -89,26 +95,26 @@ export async function uploadBook(formData: FormData) {
 export async function updateBookProgress({ bookId, progress, currentLocation }: { bookId: string, progress: number, currentLocation: string }) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user) {
-      return { error: "Não autorizado." };
+    return { error: "Não autorizado." };
   }
 
   try {
-      await prisma.book.update({
-          where: {
-              id: bookId,
-              userId: session.user.id,
-          },
-          data: {
-              progress,
-              updatedAt: new Date(), // Garante que este livro será o mais recente
-              currentLocation,
-          },
-      });
-      revalidatePath("/(app)/dashboard");
-      return { success: true };
+    await prisma.book.update({
+      where: {
+        id: bookId,
+        userId: session.user.id,
+      },
+      data: {
+        progress,
+        updatedAt: new Date(), // Garante que este livro será o mais recente
+        currentLocation,
+      },
+    });
+    revalidatePath("/(app)/dashboard");
+    return { success: true };
   } catch (error) {
-      console.error("Falha ao atualizar o progresso:", error);
-      return { error: "Não foi possível guardar o seu progresso." };
+    console.error("Falha ao atualizar o progresso:", error);
+    return { error: "Não foi possível guardar o seu progresso." };
   }
 }
 
@@ -150,13 +156,13 @@ export async function getCurrentlyReadingBook() {
         updatedAt: 'desc',
       },
     });
-    
+
     // Se não houver livros em progresso, retorna o mais recente adicionado
     if (!book) {
-        return prisma.book.findFirst({
-            where: { userId: session.user.id },
-            orderBy: { createdAt: 'desc' },
-        });
+      return prisma.book.findFirst({
+        where: { userId: session.user.id },
+        orderBy: { createdAt: 'desc' },
+      });
     }
 
     return book;
@@ -262,13 +268,13 @@ export async function refreshBookMetadata(bookId: string) {
 
     // Se o livro já tem capa e não é "Autor desconhecido", não precisamos fazer nada
     if (book.coverUrl && book.author !== "Autor desconhecido") {
-        return { success: false, message: "Metadados já estão atualizados." };
+      return { success: false, message: "Metadados já estão atualizados." };
     }
 
     // 2. Baixar o arquivo EPUB do Blob Storage para a memória
     const response = await fetch(book.filePath);
     if (!response.ok) throw new Error("Falha ao baixar o arquivo do livro.");
-    
+
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -278,31 +284,31 @@ export async function refreshBookMetadata(bookId: string) {
     // 4. Se encontrou uma capa nova, fazer upload
     let newCoverUrl = book.coverUrl;
     if (metadata.coverBuffer && metadata.coverMimeType) {
-        const safeTitle = metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        const ext = metadata.coverMimeType.split('/')[1] || 'jpg';
-        const coverFilename = `covers/${Date.now()}-${safeTitle}.${ext}`;
-        
-        const coverBlob = await put(coverFilename, metadata.coverBuffer, {
-            access: 'public',
-            contentType: metadata.coverMimeType,
-        });
-        newCoverUrl = coverBlob.url;
+      const safeTitle = metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const ext = metadata.coverMimeType.split('/')[1] || 'jpg';
+      const coverFilename = `covers/${Date.now()}-${safeTitle}.${ext}`;
+
+      const coverFile = new File([new Uint8Array(metadata.coverBuffer)], coverFilename, { type: metadata.coverMimeType });
+      const coverBlob = await utapi.uploadFiles(coverFile);
+      if (!coverBlob.error && coverBlob.data) {
+        newCoverUrl = coverBlob.data.url;
+      }
     }
 
     // 5. Atualizar o Banco de Dados
     await prisma.book.update({
-        where: { id: bookId },
-        data: {
-            title: metadata.title !== "Sem Título" ? metadata.title : book.title,
-            author: metadata.author !== "Autor Desconhecido" ? metadata.author : book.author,
-            description: metadata.description || book.description,
-            coverUrl: newCoverUrl,
-        }
+      where: { id: bookId },
+      data: {
+        title: metadata.title !== "Sem Título" ? metadata.title : book.title,
+        author: metadata.author !== "Autor Desconhecido" ? metadata.author : book.author,
+        description: metadata.description || book.description,
+        coverUrl: newCoverUrl,
+      }
     });
 
     revalidatePath("/(app)/dashboard");
     revalidatePath(`/read/${bookId}`);
-    
+
     return { success: true, message: "Metadados atualizados com sucesso!" };
 
   } catch (error) {

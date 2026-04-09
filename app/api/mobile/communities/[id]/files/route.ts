@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { utapi } from "@/lib/uploadthing-server";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
@@ -28,40 +28,46 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   });
 
   if (!membership) {
-      return NextResponse.json({ error: "Você não é membro desta comunidade." }, { status: 403 });
+    return NextResponse.json({ error: "Você não é membro desta comunidade." }, { status: 403 });
   }
 
   // REGRA DE NEGÓCIO: Apenas Dono e Membros Honorários podem postar materiais
   const canUpload = membership.role === 'OWNER' || membership.role === 'HONORARY_MEMBER';
 
   if (!canUpload) {
-      return NextResponse.json({ 
-          error: "Permissão negada. Apenas o Dono e Membros Honorários podem adicionar materiais." 
-      }, { status: 403 });
+    return NextResponse.json({
+      error: "Permissão negada. Apenas o Dono e Membros Honorários podem adicionar materiais."
+    }, { status: 403 });
   }
 
   // 3. Processamento do Upload
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
-    
+
     if (!file) return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
 
-    const blob = await put(`community/${params.id}/${file.name}`, file, { access: 'public' });
+    const blob = await utapi.uploadFiles(
+      new File([await file.arrayBuffer()], `community-${params.id}-${file.name}`, { type: file.type })
+    );
+
+    if (blob.error || !blob.data) {
+      return NextResponse.json({ error: "Falha ao processar upload" }, { status: 500 });
+    }
 
     const dbFile = await prisma.communityFile.create({
-        data: {
-            title: file.name,
-            fileUrl: blob.url,
-            fileType: file.type.includes('pdf') ? 'PDF' : 'EPUB',
-            communityId: params.id,
-            uploaderId: userId
-        }
+      data: {
+        title: file.name,
+        fileUrl: blob.data.url,
+        fileType: file.type.includes('pdf') ? 'PDF' : 'EPUB',
+        communityId: params.id,
+        uploaderId: userId
+      }
     });
 
     return NextResponse.json(dbFile);
   } catch (error) {
-      console.error("Erro no upload:", error);
-      return NextResponse.json({ error: "Falha ao processar upload" }, { status: 500 });
+    console.error("Erro no upload:", error);
+    return NextResponse.json({ error: "Falha ao processar upload" }, { status: 500 });
   }
 }

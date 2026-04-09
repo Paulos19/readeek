@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { put } from '@vercel/blob';
+import { utapi } from "@/lib/uploadthing-server";
 
 const WEBHOOK_SECRET = process.env.N8N_SECRET || "readeek-secure-key";
 
@@ -25,14 +25,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // 3. Upload para Vercel Blob
-    const filename = `${type}-${Date.now()}.png`;
-    const blob = await put(`games/assets/${filename}`, file, {
-      access: 'public',
-    });
+    // 3. Upload para UploadThing
+    const filename = `games-assets-${type}-${Date.now()}.png`;
+    const blob = await utapi.uploadFiles(
+      new File([await file.arrayBuffer()], filename, { type: file.type || "image/png" })
+    );
+
+    if (blob.error || !blob.data) throw new Error("Upload failed");
 
     // 4. Retorna a URL para o N8N usar no código
-    return NextResponse.json({ url: blob.url });
+    return NextResponse.json({ url: blob.data.url });
 
   } catch (error) {
     console.error("Erro no upload via N8N:", error);
