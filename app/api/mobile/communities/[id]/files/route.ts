@@ -42,24 +42,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   // 3. Processamento do Upload
   try {
-    const formData = await req.formData();
-    const file = formData.get("file") as File;
+    const payload = await req.json();
+    const { fileUrl, fileName } = payload;
 
-    if (!file) return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
-
-    const blob = await utapi.uploadFiles(
-      new File([await file.arrayBuffer()], `community-${params.id}-${file.name}`, { type: file.type })
-    );
-
-    if (blob.error || !blob.data) {
-      return NextResponse.json({ error: "Falha ao processar upload" }, { status: 500 });
-    }
+    if (!fileUrl || !fileName) return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
 
     const dbFile = await prisma.communityFile.create({
       data: {
-        title: file.name,
-        fileUrl: blob.data.url,
-        fileType: file.type.includes('pdf') ? 'PDF' : 'EPUB',
+        title: fileName,
+        fileUrl: fileUrl,
+        fileType: fileName.toLowerCase().includes('.pdf') ? 'PDF' : 'EPUB',
         communityId: params.id,
         uploaderId: userId
       }

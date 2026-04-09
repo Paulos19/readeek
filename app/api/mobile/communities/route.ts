@@ -45,19 +45,19 @@ export async function POST(req: Request) {
   }
 
   try {
-    const formData = await req.formData();
+    const payload = await req.json();
 
     // 1. Sanitização Básica
-    const name = (formData.get("name") as string).trim();
-    const description = (formData.get("description") as string)?.trim();
-    const type = formData.get("type") as string || "GENERAL";
+    const name = (payload.name || "").trim();
+    const description = payload.description?.trim();
+    const type = payload.type || "GENERAL";
 
     // 2. Correção de Visibilidade (Web espera minúscula)
-    const rawVisibility = (formData.get("visibility") as string)?.toLowerCase();
+    const rawVisibility = payload.visibility?.toLowerCase();
     const visibility = rawVisibility === 'private' ? 'private' : 'public';
 
     // 3. Tratamento e Encriptação da Senha
-    const rawPassword = formData.get("password") as string;
+    const rawPassword = payload.password;
     let finalPassword = null;
 
     if (visibility === 'private' && rawPassword && rawPassword.trim() !== '') {
@@ -65,16 +65,7 @@ export async function POST(req: Request) {
       finalPassword = await bcrypt.hash(rawPassword.trim(), 10);
     }
 
-    // 4. Upload da Capa
-    const file = formData.get("cover") as File | null;
-    let coverUrl = null;
-
-    if (file) {
-      const blob = await utapi.uploadFiles(
-        new File([await file.arrayBuffer()], `communities-${Date.now()}-${file.name}`, { type: file.type })
-      );
-      if (!blob.error && blob.data) coverUrl = blob.data.url;
-    }
+    const coverUrl = payload.coverUrl || null;
 
     // 5. Salvar no Banco
     const community = await prisma.community.create({

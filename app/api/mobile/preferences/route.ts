@@ -39,25 +39,18 @@ export async function POST(request: Request) {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
 
-    const formData = await request.formData();
-    const myBubbleColor = formData.get("myBubbleColor") as string;
-    const otherBubbleColor = formData.get("otherBubbleColor") as string;
-    const file = formData.get("wallpaper") as File | null;
-    const removeWallpaper = formData.get("removeWallpaper") === "true";
+    const payload = await request.json();
+    const { myBubbleColor, otherBubbleColor, wallpaperUrl, removeWallpaper } = payload;
 
     const updateData: any = {};
 
     if (myBubbleColor) updateData.myBubbleColor = myBubbleColor;
     if (otherBubbleColor) updateData.otherBubbleColor = otherBubbleColor;
 
-    // Lógica de Wallpaper
     if (removeWallpaper) {
       updateData.wallpaperUrl = null;
-    } else if (file) {
-      const blob = await utapi.uploadFiles(
-        new File([await file.arrayBuffer()], `wallpapers-${userId}-${Date.now()}.jpg`, { type: file.type })
-      );
-      if (!blob.error && blob.data) updateData.wallpaperUrl = blob.data.url;
+    } else if (wallpaperUrl) {
+      updateData.wallpaperUrl = wallpaperUrl;
     }
 
     const updatedUser = await prisma.user.update({

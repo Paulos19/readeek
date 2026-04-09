@@ -80,16 +80,20 @@ export async function POST(request: Request) {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId || decoded.id;
 
-    // 1. Receber o FormData
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    // 1. Receber o JSON
+    const body = await request.json();
+    const { bookUrl } = body;
 
-    if (!file) {
-      return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
+    if (!bookUrl) {
+      return NextResponse.json({ error: "Nenhum URL de livro enviado" }, { status: 400 });
     }
 
-    // 2. Processar o Buffer e Metadados
-    const arrayBuffer = await file.arrayBuffer();
+    // 2. Baixar o arquivo EPUB para ler os metadados e a capa
+    const fileResponse = await fetch(bookUrl);
+    if (!fileResponse.ok) {
+      return NextResponse.json({ error: "Não foi possível baixar o livro para leitura de metadados" }, { status: 400 });
+    }
+    const arrayBuffer = await fileResponse.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
     let metadata;
@@ -98,7 +102,7 @@ export async function POST(request: Request) {
     } catch (e) {
       // Fallback se falhar o parsing
       metadata = {
-        title: file.name.replace('.epub', ''),
+        title: "Livro Desconhecido " + Date.now(),
         author: "Autor Desconhecido",
         description: null,
         coverBuffer: null,
@@ -125,17 +129,7 @@ export async function POST(request: Request) {
       }, { status: 409 }); // 409 Conflict
     }
 
-    // 4. Upload do Arquivo (.epub) para o Blob
-    const safeTitle = metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const filename = `books/mobile-upload/${Date.now()}-${safeTitle}.epub`;
-
-    const bookBlob = await utapi.uploadFiles(
-      new File([new Uint8Array(buffer)], filename, { type: 'application/epub+zip' })
-    );
-
-    if (bookBlob.error) {
-      return NextResponse.json({ error: "Falha ao fazer upload do livro" }, { status: 500 });
-    }
+    const safeTitle = metadata.title ? metadata.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'book';
 
     // 5. Upload da Capa (se houver)
     let coverUrl = null;
@@ -155,7 +149,7 @@ export async function POST(request: Request) {
         title: metadata.title,
         author: metadata.author,
         description: metadata.description,
-        filePath: bookBlob.data.url,
+        filePath: bookUrl,
         coverUrl: coverUrl,
         userId: userId,
         progress: 0

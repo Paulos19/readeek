@@ -55,48 +55,17 @@ export async function POST(
       select: { name: true }
     });
 
-    const formData = await request.formData();
-    const content = formData.get("content") as string;
-    const imageFile = formData.get("image") as File;
-    const audioFile = formData.get("audio") as File;
-    const docFile = formData.get("file") as File;
-    const replyToId = formData.get("replyToId") as string | null;
+    const payload = await request.json();
+    const { content, imageUrl, audioUrl, fileUrl, fileName, fileSize, replyToId } = payload;
 
-    if (!content && !imageFile && !audioFile && !docFile) {
+    if (!content && !imageUrl && !audioUrl && !fileUrl) {
       return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
     }
 
-    // --- UPLOAD THING ---
-    let imageUrl = null;
-    let audioUrl = null;
-    let fileUrl = null;
-    let fileName = null;
-    let fileSize = null;
     let type = "TEXT";
-
-    if (imageFile) {
-      type = "IMAGE";
-      const blob = await utapi.uploadFiles(
-        new File([await imageFile.arrayBuffer()], `chat-${params.id}-images-${Date.now()}-${imageFile.name}`, { type: imageFile.type })
-      );
-      if (!blob.error && blob.data) imageUrl = blob.data.url;
-    }
-    if (audioFile) {
-      type = "AUDIO";
-      const blob = await utapi.uploadFiles(
-        new File([await audioFile.arrayBuffer()], `chat-${params.id}-audio-${Date.now()}.m4a`, { type: audioFile.type || "audio/m4a" })
-      );
-      if (!blob.error && blob.data) audioUrl = blob.data.url;
-    }
-    if (docFile) {
-      type = "FILE";
-      fileName = docFile.name;
-      fileSize = docFile.size;
-      const blob = await utapi.uploadFiles(
-        new File([await docFile.arrayBuffer()], `chat-${params.id}-files-${Date.now()}-${docFile.name}`, { type: docFile.type })
-      );
-      if (!blob.error && blob.data) fileUrl = blob.data.url;
-    }
+    if (imageUrl) type = "IMAGE";
+    if (audioUrl) type = "AUDIO";
+    if (fileUrl) type = "FILE";
 
     // --- SALVAR NO BANCO (PRISMA) ---
     const message = await prisma.message.create({

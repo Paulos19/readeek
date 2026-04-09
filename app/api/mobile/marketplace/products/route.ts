@@ -28,22 +28,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Você precisa criar uma loja primeiro" }, { status: 400 });
         }
 
-        const formData = await request.formData();
-        const title = formData.get("title") as string;
-        const description = formData.get("description") as string;
-        const price = parseFloat(formData.get("price") as string);
-        const currency = formData.get("currency") as string;
-        const address = formData.get("address") as string;
-        const stock = parseInt(formData.get("stock") as string) || 1;
-        const imageFile = formData.get("image") as File;
-
-        let imageUrl = null;
-        if (imageFile) {
-            const blob = await utapi.uploadFiles(
-                new File([await imageFile.arrayBuffer()], `products-${Date.now()}-${imageFile.name}`, { type: imageFile.type })
-            );
-            if (!blob.error && blob.data) imageUrl = blob.data.url;
-        }
+        const payload = await request.json();
+        const { title, description, currency, address, imageUrl } = payload;
+        const price = parseFloat(payload.price as string);
+        const stock = parseInt(payload.stock as string) || 1;
 
         // CORREÇÃO: Usando 'product' em vez de 'marketProduct'
         const product = await prisma.product.create({

@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const userId = decoded.userId;
 
     const body = await req.json();
-    const { title, description, htmlContent, orientation, mode } = body; 
+    const { title, description, htmlContent, orientation, mode, coverUrl } = body;
     // mode: 'IMPORT' (45) | 'CREATE' (60)
 
     const cost = mode === 'CREATE' ? 60 : 45;
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     // 1. Transação Atômica: Verifica saldo -> Deduz -> Cria Jogo
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: userId } });
-      
+
       if (!user || user.credits < cost) {
         throw new Error("Saldo insuficiente");
       }
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
           htmlContent, // Aqui entra o HTML stringão
           orientation: orientation || 'PORTRAIT',
           ownerId: userId,
+          coverUrl: coverUrl || null,
           price: 15 // Valor fixo de venda conforme requisito
         }
       });

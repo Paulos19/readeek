@@ -35,20 +35,10 @@ export async function POST(request: Request) {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
 
-    const formData = await request.formData();
-    const name = formData.get("name") as string;
-    const description = formData.get("description") as string;
-    const file = formData.get("image") as File;
+    const payload = await request.json();
+    const { name, description, imageUrl } = payload;
 
     if (!name) return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 });
-
-    let imageUrl = null;
-    if (file) {
-      const blob = await utapi.uploadFiles(
-        new File([await file.arrayBuffer()], `shops-${userId}-${file.name}`, { type: file.type })
-      );
-      if (!blob.error && blob.data) imageUrl = blob.data.url;
-    }
 
     const shop = await prisma.shop.create({
       data: {

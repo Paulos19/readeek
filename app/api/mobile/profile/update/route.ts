@@ -15,37 +15,8 @@ export async function PATCH(request: Request) {
     const decoded: any = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId || decoded.id;
 
-    // 2. Verifica o Content-Type para decidir como ler os dados
-    const contentType = request.headers.get("content-type") || "";
-
-    let dataToUpdate: any = {};
-
-    if (contentType.includes("multipart/form-data")) {
-      // --- LÓGICA DE UPLOAD DE ARQUIVO ---
-      const formData = await request.formData();
-      const file = formData.get("image") as File | null;
-      const name = formData.get("name") as string | null;
-      const about = formData.get("about") as string | null;
-      const profileVisibility = formData.get("profileVisibility") as "PUBLIC" | "PRIVATE" | null;
-
-      if (name) dataToUpdate.name = name;
-      if (about) dataToUpdate.about = about;
-      if (profileVisibility) dataToUpdate.profileVisibility = profileVisibility;
-
-      // Se enviou uma nova imagem, faz upload para o UploadThing
-      if (file) {
-        const filename = `avatars-${userId}-${Date.now()}.${file.name.split('.').pop()}`;
-        const blob = await utapi.uploadFiles(
-          new File([await file.arrayBuffer()], filename, { type: file.type })
-        );
-        if (!blob.error && blob.data) dataToUpdate.image = blob.data.url;
-      }
-
-    } else {
-      // --- LÓGICA JSON (Texto apenas) ---
-      const body = await request.json();
-      dataToUpdate = { ...body };
-    }
+    const body = await request.json();
+    const dataToUpdate = { ...body };
 
     // 3. Atualiza no Banco de Dados
     const updatedUser = await prisma.user.update({

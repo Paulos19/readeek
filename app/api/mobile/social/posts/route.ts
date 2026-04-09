@@ -71,31 +71,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    const contentType = req.headers.get("content-type") || "";
-    let content = "";
-    let type = "POST";
-    let bookId = null;
-    let imageUrl = null;
-
-    if (contentType.includes("multipart/form-data")) {
-      const formData = await req.formData();
-      content = formData.get("content") as string || "";
-      type = formData.get("type") as string || "POST";
-      bookId = formData.get("bookId") as string || null;
-
-      const imageFile = formData.get("image") as File | null;
-      if (imageFile) {
-        const blob = await utapi.uploadFiles(
-          new File([await imageFile.arrayBuffer()], `posts-${Date.now()}-${imageFile.name}`, { type: imageFile.type })
-        );
-        if (!blob.error && blob.data) imageUrl = blob.data.url;
-      }
-    } else {
-      const body = await req.json();
-      content = body.content;
-      type = body.type || "POST";
-      bookId = body.bookId || null;
-    }
+    const body = await req.json();
+    const content = body.content || "";
+    const type = body.type || "POST";
+    const bookId = body.bookId || null;
+    const imageUrl = body.imageUrl || null;
 
     if (!content.trim() && !imageUrl) {
       return NextResponse.json({ error: "Post requires text or image." }, { status: 400 });
