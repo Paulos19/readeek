@@ -45,37 +45,75 @@ export async function POST(req: Request) {
   }
 
   try {
-    const payload = await req.json();
+    // Detecta se é FormData ou JSON
+    const contentType = req.headers.get("content-type") || "";
+    let name = "";
+    let description: string | undefined;
+    let type = "GENERAL";
+    let rawVisibility = "public";
+    let rawPassword: string | undefined;
+    let coverUrl: string | null = null;
+    let imageFile: File | null = null;
 
-    // 1. Sanitização Básica
-    const name = (payload.name || "").trim();
-    const description = payload.description?.trim();
-    const type = payload.type || "GENERAL";
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      name = (formData.get("name") as string || "").trim();
+      description = (formData.get("description") as string || "").trim() || undefined;
+      type = (formData.get("type") as string) || "GENERAL";
+      rawVisibility = (formData.get("visibility") as string) || "public";
+      rawPassword = formData.get("password") as string || undefined;
+      coverUrl = formData.get("coverUrl") as string || null;
 
-    // 2. Correção de Visibilidade (Web espera minúscula)
-    const rawVisibility = payload.visibility?.toLowerCase();
-    const visibility = rawVisibility === 'private' ? 'private' : 'public';
+      const file = formData.get("image") as File | null;
+      if (file && file.size > 0) {
+        imageFile = file;
+      }
+    } else {
+      const payload = await req.json();
+      name = (payload.name || "").trim();
+      description = payload.description?.trim();
+      type = payload.type || "GENERAL";
+      rawVisibility = payload.visibility || "public";
+      rawPassword = payload.password;
+      coverUrl = payload.coverUrl || null;
+    }
 
-    // 3. Tratamento e Encriptação da Senha
-    const rawPassword = payload.password;
+    // Validação básica
+    if (!name) {
+      return NextResponse.json({ error: "O nome é obrigatório." }, { status: 400 });
+    }
+
+    // Normalização de visibilidade
+    const visibility = rawVisibility?.toLowerCase() === 'private' ? 'private' : 'public';
+
+    // Encriptação da senha
     let finalPassword = null;
-
     if (visibility === 'private' && rawPassword && rawPassword.trim() !== '') {
-      // Encripta a senha com custo 10 (padrão)
       finalPassword = await bcrypt.hash(rawPassword.trim(), 10);
     }
 
-    const coverUrl = payload.coverUrl || null;
+    // Upload da imagem de capa se houver
+    if (imageFile) {
+      try {
+        const uploaded = await utapi.uploadFiles(imageFile);
+        if (uploaded.data?.ufsUrl) {
+          coverUrl = uploaded.data.ufsUrl;
+        }
+      } catch (uploadError) {
+        console.error("Erro no upload da capa:", uploadError);
+        // Continua sem capa em caso de falha
+      }
+    }
 
-    // 5. Salvar no Banco
+    // Salvar no Banco
     const community = await prisma.community.create({
       data: {
         name,
         description,
         type,
         coverUrl,
-        visibility, // Salva 'private' ou 'public' (minúsculo)
-        password: finalPassword, // Salva o HASH, não o texto plano
+        visibility,
+        password: finalPassword,
         owner: { connect: { id: user.userId } },
         members: {
           create: {
