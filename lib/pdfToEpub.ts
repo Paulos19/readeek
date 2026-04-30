@@ -1,7 +1,9 @@
 import JSZip from "jszip";
-const pdfParse = require("pdf-parse");
 
 export async function convertPdfToEpub(pdfBuffer: Buffer | any, title: string): Promise<any> {
+  // Lazy load pdf-parse to avoid Next.js build-time bundling issues
+  const pdfParse = require("pdf-parse");
+  
   // 1. Extract text from the PDF
   const data = await pdfParse(pdfBuffer);
   const text = data.text;
