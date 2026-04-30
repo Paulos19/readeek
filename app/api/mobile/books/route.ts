@@ -89,17 +89,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
     }
 
+    console.log("[Upload] Arquivo recebido:", file.name, "| Tipo:", file.type, "| Tamanho:", file.size);
+
     // 2. Processar o Buffer e Metadados
     const arrayBuffer = await file.arrayBuffer();
     let buffer = Buffer.from(arrayBuffer);
     const fileName = file.name.toLowerCase();
 
+    console.log("[Upload] Buffer criado:", buffer.length, "bytes");
+
     // 2.a Converter PDF para EPUB se necessário
     if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
       try {
+        console.log("[Upload] Detectado PDF, iniciando conversão...");
         buffer = await convertPdfToEpub(buffer, file.name.replace(/\.pdf$/i, ''));
-      } catch (e) {
-        return NextResponse.json({ error: "Falha ao converter o arquivo PDF" }, { status: 400 });
+        console.log("[Upload] PDF convertido com sucesso:", buffer.length, "bytes");
+      } catch (e: any) {
+        console.error("[Upload] Falha na conversão PDF:", e.message, e.stack);
+        return NextResponse.json({ error: "Falha ao converter o arquivo PDF", details: e.message }, { status: 400 });
       }
     }
 
