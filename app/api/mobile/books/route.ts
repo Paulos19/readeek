@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
 import { parseEpub } from "@/lib/epubParser";
+import { convertPdfToEpub } from "@/lib/pdfToEpub";
 import { utapi } from "@/lib/uploadthing-server";
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-dev-only";
@@ -90,7 +91,17 @@ export async function POST(request: Request) {
 
     // 2. Processar o Buffer e Metadados
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    let buffer = Buffer.from(arrayBuffer);
+    const fileName = file.name.toLowerCase();
+
+    // 2.a Converter PDF para EPUB se necessário
+    if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
+      try {
+        buffer = await convertPdfToEpub(buffer, file.name.replace(/\.pdf$/i, ''));
+      } catch (e) {
+        return NextResponse.json({ error: "Falha ao converter o arquivo PDF" }, { status: 400 });
+      }
+    }
 
     let metadata;
     try {
@@ -98,7 +109,7 @@ export async function POST(request: Request) {
     } catch (e) {
       // Fallback se falhar o parsing
       metadata = {
-        title: file.name.replace('.epub', ''),
+        title: file.name.replace(/\.epub$/i, '').replace(/\.pdf$/i, ''),
         author: "Autor Desconhecido",
         description: null,
         coverBuffer: null,
