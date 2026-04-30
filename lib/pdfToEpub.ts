@@ -111,12 +111,12 @@ export async function convertPdfToEpub(pdfBuffer: Buffer | any, title: string): 
   // Estratégia 2: Fallback com pdf-parse (se a extração manual não deu resultado)
   if (text.length < 50) {
     try {
-      const pdfParse = require("pdf-parse/lib/pdf-parse");
+      const pdfParse = require("pdf-parse");
       const data = await pdfParse(pdfBuffer);
       text = data.text || "";
-      console.log("[PDF->EPUB] pdf-parse: obteve", text.length, "caracteres");
+      console.log("[PDF->EPUB] pdf-parse fallback: obteve", text.length, "caracteres");
     } catch (e: any) {
-      console.warn("[PDF->EPUB] pdf-parse também falhou:", e.message);
+      console.warn("[PDF->EPUB] pdf-parse fallback também falhou:", e.message);
     }
   }
 
