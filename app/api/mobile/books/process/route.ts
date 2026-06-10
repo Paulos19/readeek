@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const userId = decoded.userId || decoded.id;
 
     const body = await request.json();
-    const { fileUrl, fileName } = body;
+    const { fileUrl, fileName, skipConversion, title, author, coverBase64 } = body;
 
     if (!fileUrl || !fileName) {
       return NextResponse.json({ error: "fileUrl e fileName são obrigatórios" }, { status: 400 });
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     let finalFileUrl = fileUrl;
     const isPdf = lowerName.endsWith('.pdf');
 
-    if (isPdf) {
+    if (isPdf && !skipConversion) {
       try {
         console.log("[Process] Detectado PDF, convertendo para EPUB...");
         buffer = await convertPdfToEpub(buffer, fileName.replace(/\.pdf$/i, ''));
@@ -76,18 +76,28 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Extrair metadados do EPUB
+    // 3. Extrair metadados do EPUB ou usar os enviados
     let metadata;
-    try {
-      metadata = await parseEpub(buffer);
-    } catch (e) {
-      metadata = {
-        title: fileName.replace(/\.(epub|pdf)$/i, ''),
-        author: "Autor Desconhecido",
-        description: null,
-        coverBuffer: null,
-        coverMimeType: null
-      };
+    if (skipConversion && title) {
+       metadata = {
+         title: title,
+         author: author || "Autor Desconhecido",
+         description: null,
+         coverBuffer: coverBase64 ? Buffer.from(coverBase64.split(',')[1] || coverBase64, 'base64') : null,
+         coverMimeType: coverBase64 ? (coverBase64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg') : null
+       };
+    } else {
+      try {
+        metadata = await parseEpub(buffer);
+      } catch (e) {
+        metadata = {
+          title: fileName.replace(/\.(epub|pdf)$/i, ''),
+          author: "Autor Desconhecido",
+          description: null,
+          coverBuffer: null,
+          coverMimeType: null
+        };
+      }
     }
 
     console.log("[Process] Metadados:", metadata.title, "|", metadata.author);
