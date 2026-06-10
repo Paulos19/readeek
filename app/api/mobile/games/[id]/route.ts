@@ -59,3 +59,61 @@ export async function GET(
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
+
+export async function PATCH(
+  req: Request,
+  props: { params: Promise<{ id: string }> }
+) {
+  const params = await props.params;
+  const id = params.id;
+
+  try {
+    const authHeader = req.headers.get("authorization");
+    let currentUserId = "";
+
+    if (authHeader) {
+      try {
+        const token = authHeader.split(" ")[1];
+        const decoded: any = jwt.verify(token, JWT_SECRET);
+        currentUserId = decoded.userId;
+      } catch (e) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+      }
+    } else {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+
+    const game = await prisma.game.findUnique({
+      where: { id }
+    });
+
+    if (!game) {
+      return NextResponse.json({ error: "Jogo não encontrado" }, { status: 404 });
+    }
+
+    if (game.ownerId !== currentUserId) {
+      return NextResponse.json({ error: "Permissão negada" }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { title, description, coverUrl, htmlContent, orientation, price } = body;
+
+    const updatedGame = await prisma.game.update({
+      where: { id },
+      data: {
+        ...(title && { title }),
+        ...(description && { description }),
+        ...(coverUrl && { coverUrl }),
+        ...(htmlContent && { htmlContent }),
+        ...(orientation && { orientation }),
+        ...(price !== undefined && { price }),
+      }
+    });
+
+    return NextResponse.json(updatedGame);
+
+  } catch (error) {
+    console.error("Erro ao atualizar o jogo:", error);
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  }
+}
