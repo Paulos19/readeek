@@ -95,19 +95,28 @@ export async function PATCH(
       return NextResponse.json({ error: "Permissão negada" }, { status: 403 });
     }
 
-    const body = await req.json();
-    const { title, description, coverUrl, htmlContent, orientation, price } = body;
+    const formData = await req.formData();
+    
+    const title = formData.get('title') as string | null;
+    const description = formData.get('description') as string | null;
+    const htmlContent = formData.get('htmlContent') as string | null;
+    // Cover upload logic would go here if needed, 
+    // mas vamos atualizar apenas os dados de texto por enquanto
+    const orientationStr = formData.get('orientation') as string | null;
+    const priceStr = formData.get('price') as string | null;
+
+    const dataToUpdate: any = {};
+    if (title !== null) dataToUpdate.title = title;
+    if (description !== null) dataToUpdate.description = description;
+    if (htmlContent !== null) dataToUpdate.htmlContent = htmlContent;
+    
+    // Opcionais não implementados no frontend mas preparados no backend
+    if (orientationStr) dataToUpdate.orientation = orientationStr;
+    if (priceStr) dataToUpdate.price = parseInt(priceStr);
 
     const updatedGame = await prisma.game.update({
       where: { id },
-      data: {
-        ...(title && { title }),
-        ...(description && { description }),
-        ...(coverUrl && { coverUrl }),
-        ...(htmlContent && { htmlContent }),
-        ...(orientation && { orientation }),
-        ...(price !== undefined && { price }),
-      }
+      data: dataToUpdate
     });
 
     return NextResponse.json(updatedGame);
