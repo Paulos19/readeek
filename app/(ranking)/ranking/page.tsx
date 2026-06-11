@@ -16,7 +16,8 @@ interface RankingPageProps {
 }
 
 export default async function RankingPage({ searchParams }: RankingPageProps) {
-  const page = Number(searchParams.page) || 1;
+  const resolvedParams = await searchParams;
+  const page = Number(resolvedParams.page) || 1;
   const rankingData = await getFullRanking({ page, limit: 15 });
 
   return (

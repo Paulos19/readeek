@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, LayoutGrid, Library, Settings, User as UserIcon } from "lucide-react"; // Ícone 'Library' trocado por 'LayoutGrid'
+import { LayoutGrid, Library, Users, User as UserIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -23,10 +23,10 @@ export function MobileTabBar({ user, currentlyReadingBook }: MobileTabBarProps) 
 
   // --- ATUALIZAÇÃO AQUI ---
   const navItems = [
-    { href: "/", icon: Home, label: "Início" },
-    { href: "/dashboard", icon: LayoutGrid, label: "Dashboard" }, // Alterado de Biblioteca para Dashboard
+    { href: "/dashboard", icon: LayoutGrid, label: "Início" },
+    { href: "/dashboard/library", icon: Library, label: "Biblioteca" },
     { href: "SPACER", icon: "SPACER", label: "SPACER" },
-    { href: "/dashboard/settings", icon: Settings, label: "Ajustes" },
+    { href: "/social", icon: Users, label: "Social" },
     { href: `/profile/${user.id}`, icon: UserIcon, label: "Perfil" },
   ];
 

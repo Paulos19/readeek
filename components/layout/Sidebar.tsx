@@ -6,17 +6,24 @@ import {
   Bookmark, 
   Settings, 
   Store, 
-  LayoutGrid, // Ícone para o novo Dashboard
-  Library     // Ícone para a Biblioteca
+  LayoutGrid, 
+  Library,
+  Gamepad2,
+  PenTool,
+  MessageCircle,
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ReadeekLogo } from "../icons/ReadeekLogo";
 
-// ATUALIZAÇÃO: A lista de links agora reflete a nova estrutura do Dashboard.
+// ATUALIZAÇÃO: A lista de links reflete as funcionalidades do mobile.
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
   { href: "/dashboard/library", label: "Biblioteca", icon: Library },
-  { href: "/dashboard/highlights", label: "Trechos", icon: Bookmark },
+  { href: "/social", label: "Social", icon: Users },
+  { href: "/games", label: "Arcade", icon: Gamepad2 },
+  { href: "/writer", label: "Writer Studio", icon: PenTool },
+  { href: "/chat", label: "Chat", icon: MessageCircle },
   { href: "/shop", label: "Loja", icon: Store },
   { href: "/dashboard/settings", label: "Configurações", icon: Settings },
 ];
@@ -25,7 +32,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden border-r bg-background md:fixed md:inset-y-0 md:left-0 md:z-10 md:block md:w-64">
+    <aside className="hidden border-r border-white/5 bg-background md:fixed md:inset-y-0 md:left-0 md:z-10 md:block md:w-64">
       <div className="flex h-full max-h-screen flex-col gap-4">
         <div className="flex h-16 items-center border-b px-6">
           <Link href="/" className="text-2xl font-bold tracking-tight">

@@ -44,7 +44,7 @@ export function BuyButton({ insigniaId, price }: BuyButtonProps) {
 
   return (
     <Button 
-      className="w-full" 
+      className={`rounded-full px-5 py-2 font-bold transition-all ${hasEnoughCredits ? 'bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-[0_0_15px_rgba(245,158,11,0.2)] hover:shadow-[0_0_20px_rgba(245,158,11,0.4)]' : 'bg-zinc-800 text-zinc-500 border border-zinc-700'}`} 
       onClick={handlePurchase} 
       disabled={isPending || !hasEnoughCredits}
     >

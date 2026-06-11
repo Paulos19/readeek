@@ -23,7 +23,8 @@ export default async function Home({ searchParams }: HomePageProps) {
   const session = await getServerSession(authOptions);
   const currentUser = session?.user as User | undefined;
   
-  const postTypeFilter = searchParams.type;
+  const resolvedParams = await searchParams;
+  const postTypeFilter = resolvedParams.type;
 
   // Busca de dados em paralelo para melhor performance
   const [posts, userBooks, latestCommunities] = await Promise.all([

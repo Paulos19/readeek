@@ -4,66 +4,56 @@
 
 @layer base {
   :root {
-    /* Tons de Fundo e Cartões */
-    --background: 210 20% 98%;
-    --foreground: 210 10% 23%;
-    --card: 210 20% 100%;
-    --card-foreground: 210 10% 23%;
-    --popover: 210 20% 100%;
-    --popover-foreground: 210 10% 23%;
-    --muted: 210 20% 94%;
-    --muted-foreground: 210 10% 45%;
-    --accent: 210 20% 90%;
-    --accent-foreground: 210 10% 15%;
-    --border: 210 20% 88%;
-    --input: 210 20% 88%;
+    /* Tons de Fundo e Cartões (Dark Theme Forçado/Padrão) */
+    --background: 240 10% 3.9%; /* zinc-950 */
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
 
-    /* Cor Primária (Teal Escuro) */
-    --primary: 173 40% 30%;
-    --primary-foreground: 180 15% 96%;
+    /* Cor Primária (Emerald 500) */
+    --primary: 141 73% 42%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Cor Secundária (Dourado) */
-    --secondary: 43 74% 60%;
-    --secondary-foreground: 43 50% 15%;
+    /* Cor Secundária (Indigo 500) */
+    --secondary: 239 84% 67%;
+    --secondary-foreground: 0 0% 100%;
 
-    /* Cor de Destaque (Ring/Focus) */
-    --ring: 173 40% 40%;
+    /* Cor de Destaque */
+    --ring: 141 73% 42%;
     
     /* Outras */
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
     --radius: 0.75rem;
   }
 
   .dark {
-    /* Tons de Fundo e Cartões (Dark) */
-    --background: 210 15% 12%;
-    --foreground: 210 15% 90%;
-    --card: 210 15% 16%;
-    --card-foreground: 210 15% 90%;
-    --popover: 210 15% 14%;
-    --popover-foreground: 210 15% 90%;
-    --muted: 210 15% 22%;
-    --muted-foreground: 210 15% 70%;
-    --accent: 210 15% 25%;
-    --accent-foreground: 210 15% 95%;
-    --border: 210 15% 25%;
-    --input: 210 15% 25%;
+    --background: 240 10% 3.9%; /* zinc-950 */
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
 
-    /* Cor Primária (Dark - Teal mais claro) */
-    --primary: 173 40% 45%;
-    --primary-foreground: 180 15% 98%;
-
-    /* Cor Secundária (Dark - Dourado mais claro) */
-    --secondary: 43 74% 66%;
-    --secondary-foreground: 43 50% 15%;
-
-    /* Cor de Destaque (Ring/Focus) */
-    --ring: 173 40% 55%;
-    
-    /* Outras */
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
+    --primary: 141 73% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 239 84% 67%;
+    --secondary-foreground: 0 0% 100%;
+    --ring: 141 73% 42%;
   }
 }
 
@@ -73,7 +63,5 @@
   }
   body {
     @apply bg-background text-foreground;
-    background-image: url('/background-texture.svg');
-    background-repeat: repeat;
   }
 }

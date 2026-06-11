@@ -1,11 +1,9 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getShopInsignias } from "@/app/actions/shopActions";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { BuyButton } from "@/components/shop/BuyButton";
-import { Coins } from "lucide-react";
+import { Coins, Store } from "lucide-react";
 import Image from "next/image";
-import { User } from "@prisma/client";
 
 export default async function ShopPage() {
   const session = await getServerSession(authOptions);
@@ -14,48 +12,47 @@ export default async function ShopPage() {
   const userCredits = session?.user?.credits ?? 0;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">Loja Readeek</h1>
-        <div className="flex items-center gap-2 rounded-full bg-muted px-4 py-2 text-md font-semibold">
-          <Coins className="h-5 w-5 text-amber-500" />
-          <span>{userCredits}</span>
+    <div className="flex-1 p-4 md:p-8 pt-6 pb-24 max-w-7xl mx-auto w-full">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-3">
+          <div className="bg-amber-500/20 p-3 rounded-2xl border border-amber-500/30">
+            <Store className="w-8 h-8 text-amber-500" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black text-white tracking-tight">Loja Readeek</h1>
+            <p className="text-zinc-400 font-medium">Use seus créditos para personalizar seu perfil</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 rounded-full bg-zinc-900 border border-amber-500/30 px-5 py-2.5 text-md font-bold shadow-[0_0_15px_rgba(245,158,11,0.15)]">
+          <Coins className="h-6 w-6 text-amber-500" />
+          <span className="text-white text-lg">{userCredits}</span>
         </div>
       </div>
       
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold">Insígnias</h2>
-        <p className="text-muted-foreground">Use os seus créditos para personalizar o seu perfil com insígnias exclusivas.</p>
-      </div>
-
       {insignias.length === 0 ? (
-        <div className="text-center py-20 border-2 border-dashed rounded-lg">
-          <h2 className="text-xl font-medium">A loja está vazia</h2>
-          <p className="text-muted-foreground mt-2">
-            Novos itens premium aparecerão aqui em breve!
-          </p>
+        <div className="flex flex-col items-center justify-center py-20 border border-dashed border-zinc-800 rounded-3xl bg-zinc-900/50">
+          <Store className="w-16 h-16 text-zinc-700 mb-4" />
+          <h3 className="text-xl font-bold text-zinc-400 mb-2">A loja está vazia</h3>
+          <p className="text-zinc-500">Novos itens premium aparecerão aqui em breve!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {insignias.map((insignia) => (
-            <Card key={insignia.id} className="flex flex-col">
-              <CardHeader className="items-center">
-                <div className="relative h-24 w-24">
-                  <Image src={insignia.imageUrl} alt={insignia.name} fill className="object-contain" />
-                </div>
-              </CardHeader>
-              <CardContent className="flex-grow text-center">
-                <CardTitle>{insignia.name}</CardTitle>
-                <CardDescription className="mt-1">{insignia.description}</CardDescription>
-              </CardContent>
-              <CardFooter className="flex-col gap-4 pt-4">
-                <div className="flex items-center gap-2 font-bold text-lg text-amber-500">
+            <div key={insignia.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden group hover:border-amber-500/50 transition-colors flex flex-col items-center p-6 text-center">
+              <div className="relative h-28 w-28 mb-4 transition-transform duration-500 group-hover:scale-110 drop-shadow-xl">
+                <Image src={insignia.imageUrl} alt={insignia.name} fill className="object-contain" />
+              </div>
+              <h3 className="text-white font-bold text-xl mb-1">{insignia.name}</h3>
+              <p className="text-zinc-400 text-sm mb-6 flex-1">{insignia.description}</p>
+              
+              <div className="w-full flex items-center justify-between border-t border-zinc-800 pt-4">
+                <div className="flex items-center gap-1.5 font-black text-lg text-amber-500">
                   <Coins className="h-5 w-5" />
                   <span>{insignia.price}</span>
                 </div>
-                <BuyButton insigniaId={insignia.id} price={insignia.price!} userCredits={userCredits} />
-              </CardFooter>
-            </Card>
+                <BuyButton insigniaId={insignia.id} price={insignia.price!} />
+              </div>
+            </div>
           ))}
         </div>
       )}

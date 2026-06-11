@@ -1,78 +1,130 @@
-import {
-  Book,
-  Bookmark,
-  Heart,
-  LayoutGrid,
-  Library,
-  Settings,
-  Sparkles,
-  Users,
-} from "lucide-react";
-import { getDashboardStats } from "@/app/actions/dashboardActions";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-
-// Componente para cartões de estatísticas
-function StatCard({ title, value, icon: Icon }: { title: string, value: string | number, icon: React.ElementType }) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Componente para cartões de navegação
-function NavCard({ title, href, icon: Icon, className }: { title: string, href: string, icon: React.ElementType, className?: string }) {
-    return (
-        <Link href={href} className={cn("block group", className)}>
-            <Card className="hover:bg-primary/10 hover:border-primary transition-colors h-full">
-                <CardHeader>
-                    <div className="bg-primary/20 text-primary w-12 h-12 rounded-lg flex items-center justify-center mb-4">
-                        <Icon size={24} />
-                    </div>
-                    <CardTitle className="group-hover:text-primary transition-colors">{title}</CardTitle>
-                </CardHeader>
-            </Card>
-        </Link>
-    )
-}
+import { getDashboardBooks } from "@/app/actions/dashboardActions";
+import { getFullRanking } from "@/app/actions/communityActions";
+import { HeroBanner } from "@/components/dashboard/HeroBanner";
+import { GameArcadeCard } from "@/components/dashboard/GameArcadeCard";
+import { WriterCallCard } from "@/components/dashboard/WriterCallCard";
+import { SectionHeader } from "@/components/dashboard/SectionHeader";
+import { ModernBookCard } from "@/components/dashboard/ModernBookCard";
+import { RankingCard } from "@/components/dashboard/RankingCard";
+import { BookOpen, TrendingUp, Trophy, Users, Sparkles } from "lucide-react";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 export default async function DashboardHomePage() {
-  const stats = await getDashboardStats();
+  const { myBooks, featuredBooks, communityBooks, rankingBooks } = await getDashboardBooks();
+  const topUsers = await getFullRanking({ page: 1, limit: 5 });
 
   return (
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+    <div className="flex-1 w-full pb-20">
+      
+      {/* Hero Banner */}
+      <div className="mt-4 md:mt-0">
+        <HeroBanner books={featuredBooks.length > 0 ? featuredBooks.slice(0, 5) : communityBooks.slice(0, 3)} />
       </div>
 
-      {/* Secção de Métricas */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Livros na Biblioteca" value={stats.totalBooks} icon={Library} />
-        <StatCard title="Livros Lidos" value={stats.booksRead} icon={Book} />
-        <StatCard title="Trechos Salvos" value={stats.totalHighlights} icon={Bookmark} />
-        <StatCard title="Seguidores" value={stats.followersCount} icon={Users} />
-        <StatCard title="A Seguir" value={stats.followingCount} icon={Heart} />
-        <StatCard title="Créditos" value={stats.credits} icon={Sparkles} />
-      </div>
+      {/* Game Arcade */}
+      <GameArcadeCard />
 
-      {/* Secção de Acesso Rápido */}
-      <div className="mt-8">
-        <h3 className="text-2xl font-bold tracking-tight mb-4">Acesso Rápido</h3>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <NavCard title="Minha Biblioteca" href="/dashboard/library" icon={Library} />
-            <NavCard title="Meus Trechos" href="/dashboard/highlights" icon={Bookmark} />
-            <NavCard title="Comunidades" href="/communities" icon={LayoutGrid} />
-            <NavCard title="Configurações" href="/dashboard/settings" icon={Settings} />
+      {/* Writer Studio */}
+      <WriterCallCard />
+
+      {/* Minha Biblioteca */}
+      {myBooks.length > 0 && (
+        <div className="mb-8">
+          <SectionHeader
+            title="Minha Biblioteca"
+            subtitle="Continue de onde parou"
+            icon={BookOpen}
+            color="#818cf8"
+            href="/dashboard/library"
+          />
+          <ScrollArea className="w-full whitespace-nowrap">
+            <div className="flex w-max space-x-4 p-4 pt-0">
+              {myBooks.map((book) => (
+                <ModernBookCard key={book.id} book={book} showProgress />
+              ))}
+            </div>
+            <ScrollBar orientation="horizontal" className="invisible" />
+          </ScrollArea>
         </div>
+      )}
+
+      {/* Hall da Fama */}
+      {topUsers.users.length > 0 && (
+        <div className="mb-8 relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-500/5 to-transparent pointer-events-none" />
+          <SectionHeader
+            title="Hall da Fama"
+            subtitle="Leitores mais ativos"
+            icon={Trophy}
+            color="#fbbf24"
+            href="/ranking"
+          />
+          <ScrollArea className="w-full whitespace-nowrap">
+            <div className="flex w-max space-x-4 p-4 pt-0">
+              {topUsers.users.map((user, index) => (
+                <RankingCard key={user.id} user={user as any} position={index + 1} />
+              ))}
+            </div>
+            <ScrollBar orientation="horizontal" className="invisible" />
+          </ScrollArea>
+        </div>
+      )}
+
+      {/* Em Alta */}
+      {rankingBooks.length > 0 && (
+        <div className="mb-8">
+          <SectionHeader
+            title="Em Alta"
+            subtitle="Tendências da semana"
+            icon={TrendingUp}
+            color="#f472b6"
+          />
+          <ScrollArea className="w-full whitespace-nowrap">
+            <div className="flex w-max space-x-8 p-4 pt-0 pl-8">
+              {rankingBooks.map((book, index) => (
+                <div key={book.id} className="relative">
+                  <span className="absolute -left-6 -bottom-4 text-[90px] font-black text-white/5 z-0 leading-none italic pointer-events-none select-none">
+                    {index + 1}
+                  </span>
+                  <div className="relative z-10">
+                    <ModernBookCard book={book} showProgress={false} />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <ScrollBar orientation="horizontal" className="invisible" />
+          </ScrollArea>
+        </div>
+      )}
+
+      {/* Comunidade */}
+      <div className="mb-8">
+        <SectionHeader
+          title="Comunidade"
+          subtitle="Obras de autores independentes"
+          icon={Users}
+          color="#34d399"
+          href="/communities"
+        />
+        <ScrollArea className="w-full whitespace-nowrap">
+          <div className="flex w-max space-x-4 p-4 pt-0">
+            {communityBooks.length > 0 ? (
+              communityBooks.map((book) => (
+                <ModernBookCard key={book.id} book={book} showProgress={false} />
+              ))
+            ) : (
+              <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl w-[300px] flex items-center gap-4 whitespace-normal">
+                <Sparkles size={24} className="text-zinc-500 shrink-0" />
+                <p className="text-zinc-500 text-sm flex-1">
+                  Você explorou tudo! Novas obras da comunidade aparecerão aqui em breve.
+                </p>
+              </div>
+            )}
+          </div>
+          <ScrollBar orientation="horizontal" className="invisible" />
+        </ScrollArea>
       </div>
+
     </div>
   );
 }

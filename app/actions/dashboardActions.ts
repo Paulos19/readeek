@@ -48,7 +48,43 @@ export async function getDashboardStats() {
       booksRead: 0,
       totalHighlights: 0,
       followersCount: 0,
-      followingCount: 0,
+    };
+  }
+}
+
+export async function getDashboardBooks() {
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+
+  try {
+    const allBooks = await prisma.book.findMany({
+      include: {
+        user: {
+          select: { id: true, name: true, image: true, role: true }
+        }
+      },
+      orderBy: { updatedAt: 'desc' }
+    });
+
+    const myBooks = userId ? allBooks.filter(b => b.userId === userId) : [];
+    const featuredBooks = allBooks.filter(b => b.user.role === 'ADMIN');
+    const communityBooks = allBooks.filter(b => b.user.role !== 'ADMIN' && b.userId !== userId);
+    
+    const rankingBooks = [...allBooks].sort((a, b) => b.downloadsCount - a.downloadsCount).slice(0, 10);
+
+    return {
+      myBooks,
+      featuredBooks,
+      communityBooks,
+      rankingBooks,
+    };
+  } catch (error) {
+    console.error("Erro ao buscar livros pro dashboard", error);
+    return {
+      myBooks: [],
+      featuredBooks: [],
+      communityBooks: [],
+      rankingBooks: [],
     };
   }
 }
